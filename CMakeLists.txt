@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.1)
-project (netscare)
+project (PicSorter)
 
 set (CMAKE_CXX_STANDARD 17)
 add_compile_options( /std:c++17 )
