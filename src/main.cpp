@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <fstream>
+#include <iostream>
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -10,6 +12,16 @@
 #define MAX_SOURCE_SIZE (0x100000)
 
 int main(void) {
+	std::cout << "Start open file test.jpg\n";
+	std::ifstream picture("test.jpg", std::ios::binary);
+	if (picture.fail()) {
+		std::cout << "failed to open file\n";
+		return 0;
+	}
+
+
+
+	return 0;
 	// Create the two input vectors
 	int i;
 	const int LIST_SIZE = 1024;

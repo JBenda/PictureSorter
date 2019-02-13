@@ -1,0 +1,51 @@
+ff type sh sl (shsl - 2 bytes)
+
+ff d8 .* ff d9
+
+c0/1 start of frema
+## c4 huffman table
+* (1) d & 0x0F = id, d & 0xF0 ? ac : dc
+* (16) add 16 bytes = num of codes
+
+zero size
+d0 - d7
+
+## d8 start of image
+* len = 8 + components * 3
+* (1) precission bits/sample
+* (2) height
+* (2) width
+* (1) num components
+* per component:
+   + (1) id: { , Y, Cb, Cr, I, Q}
+   + (1) sampling d & 0x0F = vert, d & 0xF0 = horz
+   + (1) quat table
+
+## d9 end of image
+* len >= 16
+* jifi0
+* (1) major ver = 1
+* (1) minor ver = 0 .. 2
+* (1) units
+   + 0: no
+   + 1: dots/inch
+   + 2: dots/cm
+* (2) x-density
+* (2) y-density
+* (1,1) thumbnail width and height
+* thumbnail rgb (24bit) encoded   
+
+da start of scan
+## db quantization table
+* (1) d & 0x0F = number, d & 0xF0 = precission (0: 8bit, else 16bit)
+* data (64 * (precission + 1))
+* may start again
+
+## dd restart
+* (2) n, all n mcu is a rst block (rst0, rst1, ..., rst7, rst0)
+
+
+e0 app0
+fe command
+https://www.opennet.ru/docs/formats/jpeg.txt
+https://en.wikibooks.org/wiki/JPEG_-_Idea_and_Practice/The_Huffman_coding
