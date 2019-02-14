@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <fstream>
 #include <iostream>
+#include <vector>
+#include <string>
+#include <filesystem>
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -11,16 +14,129 @@
 
 #define MAX_SOURCE_SIZE (0x100000)
 
+namespace fs = std::filesystem;
+
+class Image {
+	typedef std::size_t size_t;
+	enum BLOCK_TYPES { UNDEF = 0x00, SOI = 0xd8 };
+	const std::vector<char>& data;
+	const char *ptr;
+	std::vector<std::string> errorStack;
+	struct Infos {
+		size_t precission, width, height, numComponents;
+		struct Components
+		{
+			unsigned char id, sampV, sampH, qautTable;
+		} componenst[3];
+		friend std::ostream& operator<<(std::ostream& os, const Infos& obj) {
+			os << "imgInfo:\n\tpercission: " << obj.precission
+				<< "\n\tw: " << obj.width
+				<< "\n\th: " << obj.height
+				<< "\n\tchannels: " << obj.numComponents
+				<< "\n";
+			return os;
+		}
+	} info;
+	size_t FuseBytes(const char *p) const {
+		return (static_cast<size_t>(p[2]) << 8) + static_cast<size_t>(p[3]);
+	}
+	size_t GetLen() const {
+		return FuseBytes(ptr);
+	}
+	bool ParseSOF(size_t len) {
+		const char *itr = ptr + 4;
+		info = { 0 };
+		info.precission = *itr; ++itr;
+		info.height = FuseBytes(itr); itr += 2;
+		info.width = FuseBytes(itr); itr += 2;
+		info.numComponents = static_cast<size_t>(*itr); ++itr;
+		for (size_t i = 0; i < info.numComponents; ++i) {
+			info.componenst[i].id = static_cast<unsigned char>(*(itr++));
+			info.componenst[i].sampV = static_cast<unsigned char>((*itr) & 0x0F);
+			info.componenst[i].sampH = static_cast<unsigned char>((*itr) & 0xF0);
+			++itr;
+			info.componenst[i].qautTable = static_cast<unsigned char>(*(itr++));
+		}
+		if (itr - ptr + 2 != len) {
+			errorStack.push_back("Wrong leng encoded: "
+				+ std::to_string(itr - ptr + 2)
+				+ " vs " + std::to_string(len));
+			return false;
+		}
+		return true;
+	}
+	bool ParseBlock() {
+		if (ptr[0] != 0xff) {
+			errorStack.push_back("no block start found " + ptr[0]);
+			return false;
+		}
+		size_t len = 0;
+		bool result = true;
+		switch (ptr[1])
+		{
+		case 0xd8:
+			len = GetLen();
+			result = ParseSOF(len);
+			break;
+		case 0xd9:
+			std::cout << "reached end of pic\n";
+			break;
+		default:
+			len = GetLen();
+			break;
+		}
+		ptr += len + 2;
+		return result;
+	}
+	
+public:
+	Image(const std::vector<char>& img) : data{ img } {
+		ptr = data.data();
+	}
+	bool Parse() {
+		while (static_cast<std::size_t>(ptr - data.data()) < data.size()) {
+			if (!ParseBlock()) {
+				errorStack.push_back("can't parse block");
+				return false;
+			}
+		}
+		return true;
+	}
+	void PrintInfo() const {
+		std::cout << info;
+	}
+	void PrintError() const {
+		std::cerr << "Error trace:\n";
+		for (const auto& s : errorStack) {
+			std::cerr << '\t' << s << '\n';
+		}
+	}
+};
+
 int main(void) {
-	std::cout << "Start open file test.jpg\n";
-	std::ifstream picture("test.jpg", std::ios::binary);
-	if (picture.fail()) {
+	std::cout << "Start open file t1.jpeg\n";
+	fs::path p("t1.jpeg");
+	if (!fs::exists(p)) {
+		std::cerr << "file not found t1.jpeg\n";
+		return 0;
+	}
+	std::ifstream picture(p, std::ios::binary | std::ios::app);
+	if (picture.fail() || !picture.good()) {
 		std::cout << "failed to open file\n";
 		return 0;
 	}
-
-
-
+	picture.seekg(std::ios::end);
+	unsigned int len = static_cast<unsigned int>(picture.tellg());
+	picture.seekg(std::ios::beg);
+	std::vector<char> data(len);
+	picture.read(data.data(), len);
+	Image img(std::move(data));
+	if (!img.Parse()) {
+		std::cerr << "Failed to parse\n";
+		img.PrintError();
+		return 0;
+	}
+	img.PrintInfo();
 	return 0;
 	// Create the two input vectors
 	int i;
