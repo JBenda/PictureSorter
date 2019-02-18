@@ -10,7 +10,7 @@ c0/1 start of frema
 zero size
 d0 - d7
 
-## d8 start of image
+## c0 start of frane
 * len = 8 + components * 3
 * (1) precission bits/sample
 * (2) height
@@ -21,7 +21,7 @@ d0 - d7
    + (1) sampling d & 0x0F = vert, d & 0xF0 = horz
    + (1) quat table
 
-## d9 end of image
+## e0 app0
 * len >= 16
 * jifi0
 * (1) major ver = 1
@@ -35,7 +35,14 @@ d0 - d7
 * (1,1) thumbnail width and height
 * thumbnail rgb (24bit) encoded   
 
-da start of scan
+## da start of scan
+* (1) num components (1 or 3)
+* (2) for eack component 
+   + id 
+   + hig dc id, low ac id
+* (3) ignore
+   
+
 ## db quantization table
 * (1) d & 0x0F = number, d & 0xF0 = precission (0: 8bit, else 16bit)
 * data (64 * (precission + 1))
