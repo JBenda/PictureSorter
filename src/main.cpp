@@ -6,6 +6,7 @@
 #include <string>
 #include <filesystem>
 #include <cassert>
+#include <optional>
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -27,50 +28,29 @@ class Image {
 	class HuffmanTables {
 		class HuffmanTabel
 		{
-			class SimpleMap {
-				static constexpr size_t byteSize = 257 * 3;
-				unsigned char data[byteSize];
-				size_t size;
-			public:
-				SimpleMap() : size{ 0 } {
-					memset(data, 0xFF, byteSize);
-				}
-				size_t hash(size_t code) const {
-					return (code >> 1) % 257;
-				};
-				void AddPair(size_t code, unsigned char byte) {
-					assert(code >= 0 && code < 0xFFFF); // code out of bound
-					size_t i = hash(code);
-					unsigned char *bug = data + i * 3;
-					while (bug[0] != 0xFF || bug[1] != 0xFF) {
-						bug += 3;
-						if (++i > 256) {
-							i = 0;
-							bug = data;
-						}
-					}
-					bug[0] = static_cast<unsigned char>((code >> 8) & 0xFF);
-					bug[1] = static_cast<unsigned char>(code & 0xFF);
-					bug[2] = byte;
-				}
-				unsigned char Get(size_t code) const {
-					unsigned char hi = static_cast<unsigned char>((code >> 8) & 0xFF),
-						lo = static_cast<unsigned char>(code & 0xFF);
-					size_t i = hash(code);
-					const unsigned char *bug = data + i * 3;
-					while (bug[0] != hi || bug[1] != lo) {
-						bug += 3;
-						if (++i > 256) {
-							i = 0;
-							bug = data;
-						}
-					}
-					return bug[2];
-				}
-			} map;
 			size_t len;
-			unsigned char codeLen[16]; ///< offset for code len
+			unsigned char codeLen[17]; ///< offset for code len
 			bool bValid;
+			class CodePair {
+				unsigned char data[3];
+			public:
+				void Set(size_t code, unsigned char byte) {
+					data[0] = (code >> 8) & 0xFF;
+					data[1] = code & 0xFF;
+					data[2] = byte;
+				}
+				size_t GetCode() const { return FuseBytes(data); }
+				chanel_t GatData() const { return data[2]; }
+			} codes[256];
+			std::optional<chanel_t> GetValue(size_t code, size_t len) const {
+				const CodePair *begin = codes + codeLen[len - 1],
+					*end = codes + codeLen[len];
+				for (const CodePair* itr = begin; itr != end; ++itr) {
+					if (itr->GetCode() == code)
+						return std::optional<chanel_t>(itr->GatData());
+				}
+				return std::optional<chanel_t>();
+			}
 			size_t encodedSize;
 		public:
 			HuffmanTabel() : bValid{ false } {};
@@ -81,69 +61,100 @@ class Image {
 					codeLen[i] = static_cast<unsigned char>(len);
 					len += data[i];
 				}
+				if (len > 255) {
+					assert(false);
+				}
+				codeLen[16] = static_cast<unsigned char>(len);
 				size_t code = 0;
  				const unsigned char *bytes = data + 16;
 				size_t lenCode = 1;
+				std::cout << std::hex;
 				for (size_t i = 0; i < len; ++i) {
 					while (i == codeLen[lenCode]) {
 						++lenCode;
 						code <<= 1;
 					}
-					map.AddPair(code, bytes[i]);
+					codes[i].Set(code, bytes[i]);
+					std::cout << '\t';
+					for (int j = lenCode - 1; j >= 0; --j) {
+						std::cout << (code & (0x01 << j) ? '1' : '0');
+					}
+					std::cout << " -> " << static_cast<int>(bytes[i]) << "\n";
 					++code;
 				}
+				std::cout << std::dec;
 				encodedSize = len + 16;
 				bValid = true;
 			}
 			~HuffmanTabel() {}
+			
 			chanel_t Decode(const unsigned char* data, size_t pos) const {
 				assert(bValid);
 				bool bit;
 				size_t code = 0;
+				size_t len = 0;
+				bool sticky = true;
 				do {
-					bit = data[pos % 8] & (0x80 >> (pos / 8));
+					bit = data[(pos + len) / 8] & (0x80 >> ((pos + len) % 8));
 					code = (code << 1) + (bit ? 1 : 0);
-				} while (true);
-				return map.Get(code);
-				// TODO
+					++len;
+					if (sticky && !bit) sticky = false;
+					if (!sticky) {
+						std::optional<chanel_t> res = GetValue(code, len);
+						if (res) {
+							return res.value();
+						}
+					}
+				} while (len <= 16);
+				assert(false); // should never reached
 			}
 		};
 		std::vector<HuffmanTabel> tables;
-		std::vector<const HuffmanTabel*> acTabeles;
-		std::vector<const HuffmanTabel*> dcTabeles;
+		std::vector<unsigned char> acTabeles; ///< 0xFF == not set
+		std::vector<unsigned char> dcTabeles;
 	public:
-		HuffmanTables() {}
+		HuffmanTables() : tables(6) {}
 		/** return: bytes readed */
 		size_t AddTable(const unsigned char* data) {
 			DATA_TYPE type = data[0] & 0xF0 ? AC : DC;
 			size_t id = data[0] & 0x0F;
+
+			std::cout << "type: " << ( type == AC ? "ac" : "dc") << "\tid: " << id << "\n";
 			tables.push_back(HuffmanTabel(data + 1));
 			
-			std::vector<const HuffmanTabel*>& tRef = type == AC ? acTabeles : dcTabeles;
-			tRef.resize(id + 1, nullptr);
-			tRef[id] = &tables.back();
+			std::vector<unsigned char>& tRef = type == AC ? acTabeles : dcTabeles;
+			tRef.resize(id + 1, 0xFF);
+			tRef[id] = static_cast<unsigned char>(tables.size() - 1);
 
 			return tables.back().GetEncodedSize() + 2;
 		}
 		enum DATA_TYPE {AC, DC};
 		chanel_t Decode(size_t id, DATA_TYPE type, const unsigned char* data, size_t pos) const {
-			if (type == AC) return acTabeles[id]->Decode(data, pos);
-			else if (type == DC) return dcTabeles[id]->Decode(data, pos);
+			if (type == AC) return tables[acTabeles[id]].Decode(data, pos);
+			else if (type == DC) return tables[dcTabeles[id]].Decode(data, pos);
 			assert(false);
 			return 0;
 		}
 	} huffmanTables;
 	struct Infos {
-		size_t precission, width, height, numComponents;
+		size_t precission, width, height, numComponents, duPerMCU, ///< data units (a 64 encoded values) per mcu
+			pxPerMcu;
 		struct Components
 		{
 			unsigned char id, sampV, sampH, qautTable;
+			bool operator()(const Components& c1, const Components& c2) {
+				return c1.id < c2.id;
+			}
 		} componenst[3];
 		friend std::ostream& operator<<(std::ostream& os, const Infos& obj) {
 			os << "imgInfo:\n\tpercission: " << obj.precission
 				<< "\n\tw: " << obj.width
 				<< "\n\th: " << obj.height
-				<< "\n\tchannels: " << obj.numComponents
+				<< "\n\tchannels: " << obj.numComponents;
+			for (int i = 0; i < obj.numComponents; ++i) {
+				os << "\n\t\t id:sampleH:sampleV " << static_cast<int>(obj.componenst[i].id) << ':' << static_cast<int>(obj.componenst[i].sampH) << ':' << static_cast<int>(obj.componenst[i].sampV);
+			}
+			os  << "du per mcu: " << obj.duPerMCU
 				<< "\n";
 			return os;
 		}
@@ -155,7 +166,7 @@ class Image {
 	} density;
 	enum DECODE_DATA {DENSITY, INFO, LAST};
 	bool bSet[DECODE_DATA::LAST];
-	size_t FuseBytes(const unsigned char *p) const {
+	static size_t FuseBytes(const unsigned char *p) {
 		return (static_cast<size_t>(p[0]) << 8) + static_cast<size_t>(p[1]);
 	}
 	size_t GetLen() const {
@@ -191,13 +202,22 @@ class Image {
 		info.height = FuseBytes(itr); itr += 2;
 		info.width = FuseBytes(itr); itr += 2;
 		info.numComponents = static_cast<size_t>(*itr); ++itr;
+		info.duPerMCU = 0;
+		size_t maxSampH = 0, maxSampV = 0;
 		for (size_t i = 0; i < info.numComponents; ++i) {
 			info.componenst[i].id = *(itr++);
 			info.componenst[i].sampV = (*itr) & 0x0F;
 			info.componenst[i].sampH = ((*itr) & 0xF0) >> 4;
+			if (info.componenst[i].sampH > maxSampH) maxSampH = info.componenst[i].sampH;
+			if (info.componenst[i].sampV > maxSampV) maxSampV = info.componenst[i].sampV;
+			info.duPerMCU +=
+				info.componenst[i].sampH
+				* info.componenst[i].sampV;
 			++itr;
 			info.componenst[i].qautTable = static_cast<unsigned char>(*(itr++));
 		}
+		std::sort(info.componenst, info.componenst + 3, Infos::Components());
+		info.pxPerMcu = 64 * maxSampV * maxSampH;
 		if (itr - ptr - 2 != len) {
 			errorStack.push_back("Wrong leng encoded: "
 				+ std::to_string(itr - ptr + 2)
@@ -210,6 +230,36 @@ class Image {
 	bool ParseHuffmanTable(size_t len) {
 		for (size_t l = 4; l < len + 2; l += huffmanTables.AddTable(ptr + l));
 		return true;
+	}
+
+	struct DataUnit
+	{
+		unsigned char chanleId;
+		size_t value;
+	};
+	size_t ParseDU(const unsigned char* data, size_t pos, DataUnit& du) {
+		// encode dc value
+		// jump over ac values
+	}
+	size_t ParseMCU(const unsigned char* data, size_t pos) {
+		int duPos = 0;
+		std::vector<DataUnit> dus(info.duPerMCU);
+		for (int i = 0; i < info.numComponents; ++i) {
+			for (int j = 0; j < info.componenst[i].sampH * info.componenst[i].sampV; ++j) {
+				dus[duPos].chanleId = i;
+				pos = ParseDU(data, pos, dus[duPos]);
+				++duPos;
+			}
+		}
+		// save data in img
+		return pos;
+	}
+
+	std::optional<const unsigned char*> ParseImage(const unsigned char* data) {
+		size_t pos = 0;
+		for (size_t parsed = 0; parsed < info.width * info.height; parsed += info.pxPerMcu) {
+			pos = ParseMCU(data, pos);
+		}
 	}
 
 	bool ParseBlock() {
@@ -234,7 +284,13 @@ class Image {
 			break;
 		case 0xda: {
 			len = GetLen();
+			// ParseSOS(len);
 			const unsigned char* t = ptr + 2 + len;
+			/* std::optional<const unsigned char*> res = ParseImage(t) ///< t reference
+			result = res;
+			if (result)
+				assert(t[0] == 0xff && t[1] ==0xd9);
+				t = res.value();*/
 			while (t[0] != 0xff && t[1] != 0xd9) ++t;
 			len = t - ptr - 2;
 		}	break;
