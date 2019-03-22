@@ -21,7 +21,7 @@ namespace fs = std::filesystem;
 
 class Image {
 	typedef std::size_t size_t;
-	typedef std::size_t chanel_t;
+	typedef int chanel_t;
 	typedef unsigned char huff_t;
 	enum BLOCK_TYPES { UNDEF = 0x00, SOI = 0xd8 };
 	const std::vector<char> data;
@@ -29,6 +29,36 @@ class Image {
 	std::unique_ptr<PictureData> picture;
 	const unsigned char *ptr;
 	std::vector<std::string> errorStack;
+	class QuadTables {
+		class QuadTable {
+			std::vector<unsigned char> data;
+			size_t prec;
+		public:
+			QuadTable(size_t precisson, const unsigned char* table) : data(precisson * 64), prec{ precisson } {
+				std::memcpy(data.data(), table, precisson * 64);
+			}
+			int DeQuad(size_t pos, int val) {
+				if (prec == 1) return data[pos] * val;
+				else if (prec == 2) {
+					size_t p = pos << 1;
+					return (data[p] << 8) + data[++p];
+				}
+				assert(false);
+			}
+		};
+		std::vector<QuadTable> tables;
+	public:
+		QuadTables() : tables{} {}
+		bool AddTable(size_t id, size_t precission, const unsigned char* data) {
+			assert(id == tables.size());
+			tables.emplace_back(precission, data);
+			return true;
+		}
+		int DeQuad(size_t id, size_t pos, int val) {
+			assert(id < tables.size());
+			return tables[id].DeQuad(pos, val);
+		}
+	} quadTables;
 	class HuffmanTables {
 		class HuffmanTabel
 		{
@@ -72,7 +102,6 @@ class Image {
 				size_t code = 0;
  				const unsigned char *bytes = data + 16;
 				size_t lenCode = 1;
-				// std::cout << std::hex;
 				for (size_t i = 0; i < len; ++i) {
 					while (i == codeLen[lenCode]) {
 						++lenCode;
@@ -80,13 +109,12 @@ class Image {
 					}
 					codes[i].Set(code, bytes[i]);
 					// std::cout << '\t';
-					/*for (int j = lenCode - 1; j >= 0; --j) {
-						std::cout << (code & (0x01 << j) ? '1' : '0');
-					} */
+					// for (int j = lenCode - 1; j >= 0; --j) {
+					// 	std::cout << (code & (0x01 << j) ? '1' : '0');
+					// }
 					// std::cout << " -> " << static_cast<int>(bytes[i]) << "\n";
 					++code;
 				}
-				// std::cout << std::dec;
 				encodedSize = len + 16;
 				bValid = true;
 			}
@@ -168,7 +196,7 @@ class Image {
 				<< "\n\tw: " << obj.width
 				<< "\n\th: " << obj.height
 				<< "\n\tchannels: " << obj.numComponents;
-			for (int i = 0; i < obj.numComponents; ++i) {
+			for (std::size_t i = 0; i < obj.numComponents; ++i) {
 				os << "\n\t\t id:sampleH:sampleV " << static_cast<int>(obj.componenst[i].id) << ':' << static_cast<int>(obj.componenst[i].sampH) << ':' << static_cast<int>(obj.componenst[i].sampV);
 			}
 			os  << "du per mcu: " << obj.duPerMCU
@@ -261,15 +289,14 @@ class Image {
 	*/
 	int ReadValue(const unsigned char* data, size_t begin, size_t end) {
 		bool sign = false;
-		data += begin >> 3; // TODO: delete redondance
 		size_t len = end - begin;
 		int res = 0;
-		int read;
+		size_t read;
 		read = 8 - (begin & 0x07);
 		unsigned const char* itr = data + (begin >> 3);
 		res += (*itr) & (0xFF >> (begin & 0x07));
 		if (read > len) {
-			res >>= len - read;
+			res >>= read - len;
 			read = len;
 		}
 		len -= read;
@@ -280,7 +307,13 @@ class Image {
 			res = (res << read) + *(++itr);
 		}
 		if (len) {
-			res = (res << len) + (*itr & (0xFF << (8 - len)));
+			int mov = 8 - len;
+			unsigned char mask = 0xFF << mov;
+			res <<= len;
+			int diff = *(++itr) & mask;
+			diff >>= mov;
+			res += diff;
+			// res = (res << len) + (*(++itr) & (0xFF << (8 - len)));
 		}
 		if (sign) {
 			res -= (0x01 << (end - begin)) - 1;
@@ -299,18 +332,28 @@ class Image {
 		friend std::ostream& operator<<(std::ostream& os, const PictureData& obj) {
 			if (obj.cType == obj.COLOR) {
 				os << "ColorImage: "
-					<< "\n\tBrigthness cannle:\n\t\t" << std::hex;
+					<< "\n\tBrigthness cannle:\n\t\t";
 				for (const std::size_t& c : obj.channles[0]) os << static_cast<int>(c) << ' ';
 				os << "\n\tcr:\n\t\t";
 				for (const std::size_t& c : obj.channles[1]) os << static_cast<int>(c) << ' ';
 				os << "\n\tcg:\n\t\t";
 				for (const std::size_t& c : obj.channles[2]) os << static_cast<int>(c) << ' ';
-				os << "\n" << std::dec;
+				os << "\n\t rgb:";
+				int *r, *g, *b;
+				r = new int[obj.channles[0].size()];
+				g = new int[obj.channles[0].size()];
+				b = new int[obj.channles[0].size()];
+				for (int i = 0; i < obj.channles[0].size(); ++i) {
+					r[i] = obj.channles[0][i] + (1.402 * static_cast<float>(obj.channles[2][i] - 128));
+					g[i] = obj.channles[0][i] - (0.34414 * static_cast<float>(obj.channles[1][i] - 128)) - (0.71414 * static_cast<float>(obj.channles[2][i] - 128));
+					b[i] = obj.channles[0][i] + (1.772 * static_cast<float>(obj.channles[1][i] - 128));
+				}
+				std::cout << "rgb:\n\ttop left: " << r[0] << ":" << g[0] << ":" << b[0] << "\n";
 			} else {
 				os << "BW Image: "
-					<< "\n\tBrigthness cannle:\n\t\t" << std::hex;
+					<< "\n\tBrigthness cannle:\n\t\t";
 				for (const unsigned char& c : obj.channles[0]) os << static_cast<int>(c) << ' ';
-				os << "\n" << std::dec;
+				os << "\n";
 			}
 			return os;
 		}
@@ -345,7 +388,7 @@ class Image {
 		}
 	};
 	/** @param id channle id */
-	size_t ParseDU(const Infos::Components& comp, const unsigned char* data, size_t pos, size_t* dcs, DataUnit& du) {
+	size_t ParseDU(const Infos::Components& comp, const unsigned char* data, size_t pos, int* dcs, DataUnit& du) {
 		// encode dc value
 		// jump over ac values
 		huff_t dcLen = huffmanTables.DecodeAndMove(comp.huffTableDc, HuffmanTables::DC, data, pos);
@@ -354,9 +397,9 @@ class Image {
 		int dcDiff = 0;
 		size_t begin = pos, end = pos + dcLen;
 		dcDiff = ReadValue(data, begin, end);
-		if (dcDiff < 0) assert(-dcDiff <= dcs[comp.id]);
+		// if (dcDiff < 0) assert(-dcDiff <= dcs[comp.id]);
 		dcs[comp.id] += dcDiff;
-		du.value = dcs[comp.id];
+		du.value = (quadTables.DeQuad(comp.qautTable, 0, dcs[comp.id]) >> 3) + 128;
 		begin = end;
 		huff_t sizeDecode;
 		while (acValueCount < 63) {
@@ -370,7 +413,7 @@ class Image {
 	}
 	size_t ParseMCU(const unsigned char* data, size_t pos) {
 		int duPos = 0;
-		size_t dcs[] = {0, 0, 0, 0, 0, 0}; // max chanle id == 7
+		int dcs[] = {0, 0, 0, 0, 0, 0}; // max chanle id == 7
 		std::vector<DataUnit> dus(info.duPerMCU);
 		for (size_t i = 0; i < info.numComponents; ++i) {
 			for (int j = 0; j < info.componenst[i].sampH * info.componenst[i].sampV; ++j) {
@@ -415,6 +458,10 @@ class Image {
 		return true;
 	}
 
+	bool ParseQuadTable(size_t len) {
+		return quadTables.AddTable(ptr[4] & 0x0F, (ptr[4] >> 4) + 1, ptr + 5);
+	}
+
 	bool ParseBlock() {
 		if (ptr[0] !=  0xff) {
 			errorStack.push_back("no block start found " + ptr[0]);
@@ -453,6 +500,10 @@ class Image {
 		case 0xc4: 
 			len = GetLen();
 			result = ParseHuffmanTable(len);
+			break;
+		case 0xdb:
+			len = GetLen();
+			result = ParseQuadTable(len);
 			break;
 		case 0xd0:
 		case 0xd1:
@@ -505,7 +556,7 @@ public:
 
 int main(void) {
 	std::cout << "Start open file t1.jpeg\n";
-	fs::path p("t1.jpeg");
+	fs::path p("t2.jpeg");
 	if (!fs::exists(p)) {
 		std::cerr << "file not found t1.jpeg\n";
 		return 0;
