@@ -41,15 +41,40 @@ class Image {
 			else
 				++itr;
 		}
+		void CutOffset() {
+			for (; offset >= 8; offset -= 8) NextByte();
+		}
 	public:
-		DataItr(const unsigned char *data) : data{ data } {}
-		void Align() {}
+		DataItr(const unsigned char *data) : data{ data }, itr{ data }, offset{ 0 } {}
+		/** return number of whole bytes readad/processed
+		 */
+		size_t GetPosition() const {
+			return (itr - data);
+		}
+		void Align() {
+			if (offset) {
+				assert(((~(*itr & (0xFF >> offset))) & (0xFF >> offset)) == 0);
+				NextByte();
+				offset = 0;
+			}
+		}
+		/** attention byte align will be executet
+		*/
+		const unsigned char* GetPtr() {
+			if (offset) {
+				Align();
+			}
+			return itr;
+		}
 		/** check if next byte(s) a marker and all fill bits
 		 * note if offset == 0, than check this byte
 		 * retrun 0 no marker
 		 * retrun marker if marker
 		*/
 		unsigned char CheckForMarker() {
+			if (itr[offset ? 1 : 0] == 0xFF)
+				return itr[offset ? 2 : 1];
+			return 0x00;
 		}
 		DataItr& operator++() {
 			++offset;
@@ -57,12 +82,13 @@ class Image {
 				offset = 0;
 				NextByte();
 			}
+			assert(offset < 8);
 			return *this;
 		}
 		DataItr& operator+=(size_t offset) {
 			this->offset += offset;
-			while (offset >= 8) {
-				offset -= 8;
+			while (this->offset >= 8) {
+				this->offset -= 8;
 				NextByte();
 			}
 			return *this;
@@ -90,13 +116,25 @@ class Image {
 			while (bits >= 8) {
 				*itrD = ((0xFF >> offset) & *itr) << offset;
 				NextByte();
-				*itrD &= *itr >> (8 - offset);
+				assert(!(*itrD & (*itr >> (8 - offset)))); // all zero
+				*itrD |= *itr >> (8 - offset);
 				++itrD;
 				bits -= 8;
 			}
 			if (bits) {
-				*itrD = ((0xFF >> offset) & *itr) << offset;
+				if (bits > 8 - offset) {
+					*itrD = ((0xFF >> offset) & *itr) << offset;
+					NextByte();
+					bits -= 8 - offset;
+					*itrD |= *itr >> (8 - bits);
+					offset = bits;
+				} else {
+					*itrD = ((0xFF >> (8 - bits)) & *itr) << (8 - bits);
+					offset += bits;
+					CutOffset();
+				}
 			}
+			assert(offset < 8);
 			return true;
 		}
 	};
@@ -193,33 +231,31 @@ class Image {
 			}
 			~HuffmanTabel() {}
 			
-			huff_t Decode(const unsigned char* data, size_t pos) const {
-				return DecodeAndMove(data, pos);
+			huff_t Decode(DataItr itr) const {
+				return DecodeAndMove(itr);
 			}
 			// TODO: beter name
 			/** decode nexthuffman value and adds len to pos
 			*/
-			huff_t DecodeAndMove(const unsigned char*& data, size_t& pos) const {
+			huff_t DecodeAndMove(DataItr& itr) const {
 				assert(bValid);
 				bool bit;
 				size_t code = 0;
 				size_t len = 0;
 				bool sticky = true;
 				do {
-					const unsigned char *pByte = data + ((pos + len) / 8);
-					bit = *pByte & (0x80 >> ((pos + len) % 8));
+					bit = itr.ReadBit();
 					code = (code << 1) + (bit ? 1 : 0);
 					++len;
 					if (sticky && !bit) sticky = false;
 					if (!sticky) {
 						std::optional<huff_t> res = GetValue(code, len);
 						if (res) {
-							pos += len;
 							return res.value();
 						}
 					}
 				} while (len < 16);
-				std::cerr << "checek: " << std::hex << (int)*(data - 1) << ' ' << (int)*(data) << ' ' << (int)*(data + 1) << ' ' << (int)*(data + 2) << "\npos: " << std::dec << pos << std::endl;
+				std::cerr << "huffman code too long!\n";
 				assert(false); // should never reached
 			}
 		};
@@ -243,15 +279,9 @@ class Image {
 			return tables.back().GetEncodedSize() + 2;
 		}
 		enum DATA_TYPE {AC, DC};
-		huff_t DecodeAndMove(size_t id, DATA_TYPE type, const unsigned char*& data, size_t& pos) const {
-			if (type == AC) return tables[acTabeles[id]].DecodeAndMove(data, pos);
-			else if (type == DC) return tables[dcTabeles[id]].DecodeAndMove(data, pos);
-			assert(false);
-			return 0;
-		}
-		huff_t Decode(size_t id, DATA_TYPE type, const unsigned char* data, size_t pos) const {
-			if (type == AC) return tables[acTabeles[id]].Decode(data, pos);
-			else if (type == DC) return tables[dcTabeles[id]].Decode(data, pos);
+		huff_t DecodeAndMove(size_t id, DATA_TYPE type, DataItr& itr) const {
+			if (type == AC) return tables[acTabeles[id]].DecodeAndMove(itr);
+			else if (type == DC) return tables[dcTabeles[id]].DecodeAndMove(itr);
 			assert(false);
 			return 0;
 		}
@@ -363,36 +393,22 @@ class Image {
 	 * @param end first bit not included int integer
 	 * @return decoded integer
 	*/
-	int ReadValue(const unsigned char* data, size_t begin, size_t end) {
-		bool sign = false;
-		size_t len = end - begin;
+	int ReadValue(DataItr& itr, size_t len) {
+		assert(len <= 16);
+		bool sign = !itr.PeekBit();
 		int res = 0;
-		size_t read;
-		read = 8 - (begin & 0x07);
-		unsigned const char* itr = data + (begin >> 3);
-		res += (*itr) & (0xFF >> (begin & 0x07));
-		if (read > len) {
-			res >>= read - len;
-			read = len;
-		}
-		len -= read;
-		sign = !((0x01 << (read - 1)) & res);
-		while (len >= 8) {
-			len -= 8;
-			read = 8;
-			res = (res << read) + *(++itr);
-		}
-		if (len) {
-			int mov = 8 - len;
-			unsigned char mask = 0xFF << mov;
-			res <<= len;
-			int diff = *(++itr) & mask;
-			diff >>= mov;
-			res += diff;
-			// res = (res << len) + (*(++itr) & (0xFF << (8 - len)));
+		unsigned char *raw = reinterpret_cast<unsigned char*>(&res);
+		itr.ReadStream(len, raw);
+		if (len <= 8) {
+			res >>= 8 - len;
+		} else if (len <= 16) {
+			unsigned char b = raw[0];
+			raw[0] = raw[1];
+			raw[1] = b;
+			res >>= 16 - len;
 		}
 		if (sign) {
-			res -= (0x01 << (end - begin)) - 1;
+			res -= (0x01 << len) - 1;
 		}
 		return res;
 	}
@@ -487,7 +503,11 @@ class Image {
 			written.push_back(data);
 			written.push_back(data);
 			written.push_back(data);
-			size_t size = (width >> 3) * (height >> 3);
+			width >>= 3;
+			height >>= 3;
+			if (width % 2) ++width;
+			if (height % 2) ++height;
+			size_t size = width * height;
 			if (cType == COLOR) {
 				channles[0].resize(size);
 				channles[1].resize(size);
@@ -497,9 +517,11 @@ class Image {
 			} else assert(false);
 		}
 		void AddValues(size_t id, chanel_t val, size_t times = 1) {
+			assert((id == 1 && times == 1) || times == 4);
+			static size_t count = 0;
+			if (id == 1) ++count;
 			std::vector<chanel_t>& chanel = GetChanel(id);
 			QuadItr& itr = GetWritten(id);
-			QuadItr i2(data);
 			for (int i = 0; i < times; ++i, ++itr) {
 				chanel[itr.GetPos()] = val;
 			}
@@ -518,86 +540,83 @@ class Image {
 		}
 	};
 	/** @param id channle id */
-	size_t ParseDU(const Infos::Components& comp, const unsigned char* data, size_t pos, int* dcs, DataUnit& du) {
+	void ParseDU(const Infos::Components& comp, DataItr& itr, int* dcs, DataUnit& du) {
 		// encode dc value
 		// jump over ac values
-		huff_t dcLen = huffmanTables.DecodeAndMove(comp.huffTableDc, HuffmanTables::DC, data, pos);
+		huff_t dcLen = huffmanTables.DecodeAndMove(comp.huffTableDc, HuffmanTables::DC, itr);
 		unsigned char acValueCount = 0;
 		assert(dcLen <= 16);
 		int dcDiff = 0;
-		size_t begin = pos, end = pos + dcLen;
-		dcDiff = ReadValue(data, begin, end);
-		// if (dcDiff < 0) assert(-dcDiff <= dcs[comp.id]);
+
+		size_t posBuffer = itr.GetPosition();
+		if (posBuffer == 369)
+			std::cout << "got it\n";
+		dcDiff = ReadValue(itr, dcLen);
+		
 		dcs[comp.id] += dcDiff;
 		du.value = (quadTables.DeQuad(comp.qautTable, 0, dcs[comp.id]) / 8) + 128;
+		// if (posBuffer > 20000) std::cerr << "4ooo\n";
 		if (du.value < 0) {
-			std::cout << "erre: " << (int)comp.id << ", d = " << du.value << '\n';
+			// std::cout << "erre: " << std::dec << (int)comp.id << ", d = " << du.value << '\n';
+			// if (du.value < -30)
+				// std::cout << std::dec << du.value << " offset\n";
 			du.value = 0;
 		} else if (du.value > 255 ){
-			std::cout << "erre: " << (int)comp.id << ", d = " << (du.value - 255) << '\n';
+			// std::cout << "erre: " << std::dec << (int)comp.id << ", d = " << (du.value - 255) << '\n';
 			du.value = 255;
 		}
-		begin = end;
 		huff_t sizeDecode;
 		while (acValueCount < 63) {
-			sizeDecode = huffmanTables.DecodeAndMove(comp.huffTableAc, HuffmanTables::AC, data, begin);
+			sizeDecode = huffmanTables.DecodeAndMove(comp.huffTableAc, HuffmanTables::AC, itr);
 			if (sizeDecode == 0) break; // eod (flag (0,0) for end of data)
 			acValueCount += sizeDecode >> 4; // amount leading zeros
 			++acValueCount;
-			begin += sizeDecode & 0x0F; // len of ac value
+			itr += sizeDecode & 0x0F; // len of ac value
 		}
-		return begin;
 	}
-	size_t ParseMCU(const unsigned char* data, size_t pos) {
+	void ParseMCU(DataItr& itr) {
 		int duPos = 0;
 		std::vector<DataUnit> dus(info.duPerMCU);
 		for (size_t i = 0; i < info.numComponents; ++i) {
 			for (int j = 0; j < info.componenst[i].sampH * info.componenst[i].sampV; ++j) {
 				dus[duPos].chanleId = info.componenst[i].id;
-				pos = ParseDU(info.componenst[i], data, pos, dcs, dus[duPos]);
+				ParseDU(info.componenst[i], itr, dcs, dus[duPos]);
 				++duPos;
 			}
 		}
 		// TODO: only support 4:1:1!! 
+		assert(info.numComponents == 3);
 		for (const DataUnit& du : dus) {
 			if (du.chanleId == info.componenst[info.chanleWithHigestSample].id) picture->AddValues(du.chanleId, du.value);
 			else {
 				picture->AddValues(du.chanleId, du.value, 4);
 			}
 		}
-		return pos;
 	}
 
 	std::optional<const unsigned char*> ParseImage(const unsigned char* data) {
 		for (int i = 0; i < 7; ++i) dcs[i] = 0;
-		size_t pos = 0;
-		const unsigned char* itr = data;
 		size_t mcus = 0;
-		// DataItr itr(data);
+		DataItr itr(data);
 		unsigned char lastMarker = 0x00;
-		for (size_t parsed = 0; parsed < info.width * info.height; parsed += info.pxPerMcu) {
-			// if (resartInterval && mcus > 0 && !(mcus % resartInterval)) {
-			if ((itr[1] == 0xFF && pos > 0 && itr[2]) || (itr[0] == 0xFF && pos == 0 && itr[1])) {
-				if (pos & 0x0F) {
-					pos += 8 - (pos & 0x0F);
+		for (size_t parsed = 0; parsed < info.width * info.height; /* parsed += info.pxPerMcu */) {
+			if (const unsigned char marker = itr.CheckForMarker()) {
+				if (marker == 0xd9) {
+					std::cout << "mcus: " << std::dec << mcus << "   reached end";
+					break;
 				}
-				// assert(itr[pos >> 3] == 0xFF);
-				unsigned char marker = itr[(pos >> 3) + 1];
-				std::cout << std::hex << (int)marker << std::dec << " reset marker: mcus: " << mcus << "\n";
+				assert(resartInterval && mcus > 0 && (mcus % resartInterval) == 0);
+				itr.Align();
+				// std::cout << std::hex << (int)marker << std::dec << " reset marker: mcus: " << mcus << "\n";
 				assert(lastMarker == 0x00 || (lastMarker == 0xd7 && marker == 0xd0) || (lastMarker + 1 == marker));
 				lastMarker = marker;
 				for (int i = 0; i < 7; ++i) dcs[i] = 0;
-				pos += 16;
+				itr += 16;
 			}
-			pos = ParseMCU(itr, pos);
+			ParseMCU(itr);
 			++mcus;
-			// std::cout << mcus << "mu\n";
-			itr += pos >> 3;
-			pos &= 0x07;
 		}
-		assert(pos < 8);
-		if (pos) ++itr;
-		return std::optional<const unsigned char*>(itr);
+		return std::optional<const unsigned char*>(itr.GetPtr());
 	}
 
 	bool ParseSOS(size_t len) {
@@ -654,8 +673,8 @@ class Image {
 			result = res.has_value();
 			if (res) {
 				t = res.value();
+				PrintInfo();
 				assert(t[0] == 0xff && t[1] == 0xd9);
-				t = res.value();
 			}
 			// while (t[0] != 0xff && t[1] != 0xd9) ++t;
 			len = t - ptr - 2;
@@ -717,7 +736,7 @@ public:
 		std::cin >> name;
 		std::ofstream file(name + ".pgm");
 		const std::vector<int>& chanel = picture->GetChanel(1);
-		file << "P2\n" << (info.width / 8) << ' ' << (info.height / 8) << '\n' << (0x01 << info.precission) << '\n';
+		file << "P2\n" << (info.width / 8) << ' ' << (info.height / 8) << '\n' << ((0x01 << info.precission) - 1) << '\n';
 		for (const int& i : chanel) {
 			file << i << ' ';
 		}
@@ -732,7 +751,7 @@ public:
 
 int main(void) {
 	std::cout << "Start open file t1.jpeg\n";
-	fs::path p("t2.jpeg");
+	fs::path p("p1.jpg");
 	if (!fs::exists(p)) {
 		std::cerr << "file not found t1.jpeg\n";
 		return 0;
