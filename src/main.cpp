@@ -29,6 +29,77 @@ class Image {
 	std::unique_ptr<PictureData> picture;
 	const unsigned char *ptr;
 	std::vector<std::string> errorStack;
+	size_t resartInterval = 0;
+	int dcs[7]; // max chanle id == 7
+	class DataItr {
+		const unsigned char * const data;
+		const unsigned char *itr;
+		size_t offset; // bitwise
+		void NextByte() {
+			if (itr[0] == 0xFF && itr[1] == 0)
+				itr += 2;
+			else
+				++itr;
+		}
+	public:
+		DataItr(const unsigned char *data) : data{ data } {}
+		void Align() {}
+		/** check if next byte(s) a marker and all fill bits
+		 * note if offset == 0, than check this byte
+		 * retrun 0 no marker
+		 * retrun marker if marker
+		*/
+		unsigned char CheckForMarker() {
+		}
+		DataItr& operator++() {
+			++offset;
+			if (offset == 8) {
+				offset = 0;
+				NextByte();
+			}
+			return *this;
+		}
+		DataItr& operator+=(size_t offset) {
+			this->offset += offset;
+			while (offset >= 8) {
+				offset -= 8;
+				NextByte();
+			}
+			return *this;
+		}
+		bool ReadBit() {
+			bool ret = (*itr & (0x80 >> offset));
+			++*this;
+			return ret;
+		}
+		bool PeekBit() const {
+			return (*itr & (0x80 >> offset));
+		}
+		unsigned char ReadByte() {
+			assert(offset == 0);
+			unsigned char byte = *itr;
+			NextByte();
+			return byte;
+		}
+		unsigned char PeekByte() const {
+			assert(offset == 0);
+			return *itr;
+		}
+		bool ReadStream(size_t bits, unsigned char *dest) {
+			unsigned char *itrD = dest;
+			while (bits >= 8) {
+				*itrD = ((0xFF >> offset) & *itr) << offset;
+				NextByte();
+				*itrD &= *itr >> (8 - offset);
+				++itrD;
+				bits -= 8;
+			}
+			if (bits) {
+				*itrD = ((0xFF >> offset) & *itr) << offset;
+			}
+			return true;
+		}
+	};
 	class QuadTables {
 		class QuadTable {
 			std::vector<unsigned char> data;
@@ -37,7 +108,7 @@ class Image {
 			QuadTable(size_t precisson, const unsigned char* table) : data(precisson * 64), prec{ precisson } {
 				std::memcpy(data.data(), table, precisson * 64);
 			}
-			int DeQuad(size_t pos, int val) {
+			int DeQuad(size_t pos, int val) const {
 				if (prec == 1) return data[pos] * val;
 				else if (prec == 2) {
 					size_t p = pos << 1;
@@ -54,7 +125,7 @@ class Image {
 			tables.emplace_back(precission, data);
 			return true;
 		}
-		int DeQuad(size_t id, size_t pos, int val) {
+		int DeQuad(size_t id, size_t pos, int val) const {
 			assert(id < tables.size());
 			return tables[id].DeQuad(pos, val);
 		}
@@ -77,6 +148,8 @@ class Image {
 				huff_t GatData() const { return data[2]; }
 			} codes[256];
 			std::optional<huff_t> GetValue(size_t code, size_t len) const {
+				if (len > 16)
+					std::cerr << "spaq";
 				const CodePair *begin = codes + codeLen[len - 1],
 					*end = codes + codeLen[len];
 				for (const CodePair* itr = begin; itr != end; ++itr) {
@@ -133,7 +206,8 @@ class Image {
 				size_t len = 0;
 				bool sticky = true;
 				do {
-					bit = data[(pos + len) / 8] & (0x80 >> ((pos + len) % 8));
+					const unsigned char *pByte = data + ((pos + len) / 8);
+					bit = *pByte & (0x80 >> ((pos + len) % 8));
 					code = (code << 1) + (bit ? 1 : 0);
 					++len;
 					if (sticky && !bit) sticky = false;
@@ -144,7 +218,8 @@ class Image {
 							return res.value();
 						}
 					}
-				} while (len <= 16);
+				} while (len < 16);
+				std::cerr << "checek: " << std::hex << (int)*(data - 1) << ' ' << (int)*(data) << ' ' << (int)*(data + 1) << ' ' << (int)*(data + 2) << "\npos: " << std::dec << pos << std::endl;
 				assert(false); // should never reached
 			}
 		};
@@ -244,11 +319,11 @@ class Image {
 		const unsigned char *itr = ptr + 4;
 		info = { 0 };
 		info.precission = *itr; ++itr;
+		std::cout << info.precission << " posit\n";
 		info.height = FuseBytes(itr); itr += 2;
 		info.width = FuseBytes(itr); itr += 2;
 		info.numComponents = static_cast<size_t>(*itr); ++itr;
 		info.duPerMCU = 0;
-		picture = std::make_unique<PictureData>(PictureData::COLOR_TYPE::COLOR, info.width, info.height);
 		size_t maxSampH = 0, maxSampV = 0, maxSamp = 0;
 		for (size_t i = 0; i < info.numComponents; ++i) {
 			info.componenst[i].id = *(itr++);
@@ -274,6 +349,7 @@ class Image {
 				+ " vs " + std::to_string(len));
 			return false;
 		}
+		picture = std::make_unique<PictureData>(PictureData::COLOR_TYPE::COLOR, info.width, info.height, info.componenst[info.chanleWithHigestSample].sampH, info.componenst[info.chanleWithHigestSample].sampV);
 		return true;
 	}
 	
@@ -324,10 +400,58 @@ class Image {
 	struct DataUnit
 	{
 		unsigned char chanleId;
-		size_t value;
+		chanel_t value;
 	};
 	class PictureData {
 		std::vector<chanel_t> channles[3];
+		struct ImageData {
+			const size_t h, w, mSamX, mSamY, sampleBlock;
+			ImageData(size_t heigh, size_t width, size_t maxSampX, size_t maxSampY, size_t sampPerBlock)
+				: h{ heigh / 8}, w{ width / 8}, mSamX{ maxSampX }, mSamY{ maxSampY }, sampleBlock{sampPerBlock} {}
+		} data;
+		class QuadItr {
+			size_t size, pos, colC, rowC, w;
+			const ImageData& data;
+		public:
+			const size_t& GetPos() { return pos; }
+			const size_t& GetSize() { return size; }
+			QuadItr(const ImageData& pic) : data{ pic }, size{ 0 }, pos{ 0 }, colC{ 0 }, rowC{ 0 }, w{ 0 } {}
+			QuadItr& operator++() {
+				++size;
+				++pos;
+				++colC;
+				
+				if (colC == data.mSamX) {
+					pos += data.w - data.mSamX;
+					colC = 0;
+					++rowC;
+				}
+				if (rowC == data.mSamY) {
+					pos -= data.w * data.mSamY;
+					pos += data.mSamX;
+					rowC = 0;
+					w += data.mSamX;
+				}
+				if (w == data.w) {
+					pos += data.w * (data.mSamY - 1);
+					w = 0;
+				}
+				return *this;
+			}
+		};
+		std::vector<QuadItr> written;
+		QuadItr& GetWritten(size_t id) {
+			if (cType == COLOR_TYPE::COLOR) {
+				--id;
+				assert(id < 3);
+				return written[id];
+			}
+			else {
+				id -= 4;
+				assert(id < 1);
+				return written[id];
+			}
+		}
 	public:
 		friend std::ostream& operator<<(std::ostream& os, const PictureData& obj) {
 			if (obj.cType == obj.COLOR) {
@@ -358,20 +482,26 @@ class Image {
 			return os;
 		}
 		const enum COLOR_TYPE { COLOR, BW } cType;
-		PictureData(enum COLOR_TYPE t, size_t width, size_t height) : cType{ t } {
+		PictureData(enum COLOR_TYPE t, size_t width, size_t height, size_t maxSampleHor, size_t maxSampleVer)
+			: cType{ t }, data{ height, width, maxSampleHor, maxSampleVer, maxSampleHor * maxSampleVer } { // TODO: init stuff
+			written.push_back(data);
+			written.push_back(data);
+			written.push_back(data);
 			size_t size = (width >> 3) * (height >> 3);
 			if (cType == COLOR) {
-				channles[0].reserve(size);
-				channles[1].reserve(size);
-				channles[2].reserve(size);
+				channles[0].resize(size);
+				channles[1].resize(size);
+				channles[2].resize(size);
 			} else if (cType == BW) {
-				channles[0].reserve(size);
+				channles[0].resize(size);
 			} else assert(false);
 		}
 		void AddValues(size_t id, chanel_t val, size_t times = 1) {
 			std::vector<chanel_t>& chanel = GetChanel(id);
-			for (size_t i = 0; i < times; ++i) {
-				chanel.push_back(val);
+			QuadItr& itr = GetWritten(id);
+			QuadItr i2(data);
+			for (int i = 0; i < times; ++i, ++itr) {
+				chanel[itr.GetPos()] = val;
 			}
 		}
 		std::vector<chanel_t>& GetChanel(size_t id) {
@@ -399,7 +529,14 @@ class Image {
 		dcDiff = ReadValue(data, begin, end);
 		// if (dcDiff < 0) assert(-dcDiff <= dcs[comp.id]);
 		dcs[comp.id] += dcDiff;
-		du.value = (quadTables.DeQuad(comp.qautTable, 0, dcs[comp.id]) >> 3) + 128;
+		du.value = (quadTables.DeQuad(comp.qautTable, 0, dcs[comp.id]) / 8) + 128;
+		if (du.value < 0) {
+			std::cout << "erre: " << (int)comp.id << ", d = " << du.value << '\n';
+			du.value = 0;
+		} else if (du.value > 255 ){
+			std::cout << "erre: " << (int)comp.id << ", d = " << (du.value - 255) << '\n';
+			du.value = 255;
+		}
 		begin = end;
 		huff_t sizeDecode;
 		while (acValueCount < 63) {
@@ -413,7 +550,6 @@ class Image {
 	}
 	size_t ParseMCU(const unsigned char* data, size_t pos) {
 		int duPos = 0;
-		int dcs[] = {0, 0, 0, 0, 0, 0}; // max chanle id == 7
 		std::vector<DataUnit> dus(info.duPerMCU);
 		for (size_t i = 0; i < info.numComponents; ++i) {
 			for (int j = 0; j < info.componenst[i].sampH * info.componenst[i].sampV; ++j) {
@@ -433,10 +569,29 @@ class Image {
 	}
 
 	std::optional<const unsigned char*> ParseImage(const unsigned char* data) {
+		for (int i = 0; i < 7; ++i) dcs[i] = 0;
 		size_t pos = 0;
 		const unsigned char* itr = data;
+		size_t mcus = 0;
+		// DataItr itr(data);
+		unsigned char lastMarker = 0x00;
 		for (size_t parsed = 0; parsed < info.width * info.height; parsed += info.pxPerMcu) {
+			// if (resartInterval && mcus > 0 && !(mcus % resartInterval)) {
+			if ((itr[1] == 0xFF && pos > 0 && itr[2]) || (itr[0] == 0xFF && pos == 0 && itr[1])) {
+				if (pos & 0x0F) {
+					pos += 8 - (pos & 0x0F);
+				}
+				// assert(itr[pos >> 3] == 0xFF);
+				unsigned char marker = itr[(pos >> 3) + 1];
+				std::cout << std::hex << (int)marker << std::dec << " reset marker: mcus: " << mcus << "\n";
+				assert(lastMarker == 0x00 || (lastMarker == 0xd7 && marker == 0xd0) || (lastMarker + 1 == marker));
+				lastMarker = marker;
+				for (int i = 0; i < 7; ++i) dcs[i] = 0;
+				pos += 16;
+			}
 			pos = ParseMCU(itr, pos);
+			++mcus;
+			// std::cout << mcus << "mu\n";
 			itr += pos >> 3;
 			pos &= 0x07;
 		}
@@ -460,6 +615,13 @@ class Image {
 
 	bool ParseQuadTable(size_t len) {
 		return quadTables.AddTable(ptr[4] & 0x0F, (ptr[4] >> 4) + 1, ptr + 5);
+	}
+
+	bool ParseDRI(size_t len) {
+		assert(len == 4);
+		resartInterval = (ptr[4] << 8) + ptr[5];
+		std::cout << resartInterval << " restart mcus\n";
+		return true;
 	}
 
 	bool ParseBlock() {
@@ -487,6 +649,7 @@ class Image {
 			result = ParseSOS(len);
 			if (!result) return false;
 			const unsigned char* t = ptr + 2 + len;
+			std::cout << "ImageInfo: " << resartInterval << " reset\n" << info << std::endl;
 			std::optional<const unsigned char*> res = ParseImage(t); ///< t reference
 			result = res.has_value();
 			if (res) {
@@ -505,6 +668,10 @@ class Image {
 			len = GetLen();
 			result = ParseQuadTable(len);
 			break;
+		case 0xdd:
+			len = GetLen();
+			result = ParseDRI(len);
+			break;
 		case 0xd0:
 		case 0xd1:
 		case 0xd2:
@@ -522,6 +689,8 @@ class Image {
 			break;
 		default:
 			len = GetLen();
+			std::cout << "not ignored block: " << std::hex
+				<< static_cast<int>(ptr[1]) << '\n';
 			break;
 		}
 		ptr += len + 2;
@@ -542,9 +711,16 @@ public:
 		return true;
 	}
 	void PrintInfo() const {
-		std::cout << info 
-			<< "\n part 2 \n"
-			<< *picture;
+		std::cout << info << "\n"; // << *picture;
+		std::string name;
+		std::cout << "FileName: ";
+		std::cin >> name;
+		std::ofstream file(name + ".pgm");
+		const std::vector<int>& chanel = picture->GetChanel(1);
+		file << "P2\n" << (info.width / 8) << ' ' << (info.height / 8) << '\n' << (0x01 << info.precission) << '\n';
+		for (const int& i : chanel) {
+			file << i << ' ';
+		}
 	}
 	void PrintError() const {
 		std::cerr << "Error trace:\n";
