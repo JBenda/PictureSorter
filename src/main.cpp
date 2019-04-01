@@ -130,7 +130,6 @@ class Image {
 					*itrD |= (*itr >> (8 - bits)) << (offset - bits);
 					offset = bits;
 				} else {
-					// *itrD = ((0xFF >> (8 - bits)) & *itr) << (8 - bits);
 					*itrD = (((0xFF >> offset) & *itr) << offset) & (0xFF << (8 - bits));
 					offset += bits;
 					CutOffset();
@@ -221,11 +220,6 @@ class Image {
 						code <<= 1;
 					}
 					codes[i].Set(code, bytes[i]);
-					// std::cout << '\t';
-					// for (int j = lenCode - 1; j >= 0; --j) {
-					// 	std::cout << (code & (0x01 << j) ? '1' : '0');
-					// }
-					// std::cout << " -> " << static_cast<int>(bytes[i]) << "\n";
 					++code;
 				}
 				encodedSize = len + 16;
@@ -351,7 +345,6 @@ class Image {
 		const unsigned char *itr = ptr + 4;
 		info = { 0 };
 		info.precission = *itr; ++itr;
-		std::cout << info.precission << " posit\n";
 		info.height = FuseBytes(itr); itr += 2;
 		info.width = FuseBytes(itr); itr += 2;
 		info.numComponents = static_cast<size_t>(*itr); ++itr;
@@ -551,18 +544,14 @@ class Image {
 		int dcDiff = 0;
 
 		size_t posBuffer = itr.GetPosition();
-		if (posBuffer == 433165)
-			std::cout << "got it\n";
 		dcDiff = ReadValue(itr, dcLen);
 		
 		dcs[comp.id] += dcDiff;
 		du.value = (quadTables.DeQuad(comp.qautTable, 0, dcs[comp.id]) / 8) + 128;
-		// if (posBuffer > 20000) std::cerr << "4ooo\n";
+		// check if stuff
 		if (du.value < 0) {
-			std::cout << std::dec << du.chanleId << " <- id, val: ->" << du.value << " offset\n";
 			du.value = 0;
 		} else if (du.value > 255 ){
-			std::cout << "erre: " << std::dec << (int)comp.id << ", d = " << (du.value - 255) << '\n';
 			du.value = 255;
 		}
 		huff_t sizeDecode;
@@ -601,10 +590,8 @@ class Image {
 		unsigned char lastMarker = 0x00;
 		for (size_t parsed = 0; parsed < info.width * info.height; /* parsed += info.pxPerMcu */) {
 			if (const unsigned char marker = itr.CheckForMarker()) {
-				if (marker == 0xd9) {
-					std::cout << "mcus: " << std::dec << mcus << "   reached end";
+				if (marker == 0xd9)
 					break;
-				}
 				assert(resartInterval && mcus > 0 && (mcus % resartInterval) == 0);
 				itr.Align();
 				assert(lastMarker == 0x00 || (lastMarker == 0xd7 && marker == 0xd0) || (lastMarker + 1 == marker));
@@ -619,7 +606,7 @@ class Image {
 	}
 
 	bool ParseSOS(size_t len) {
-		assert(ptr[4] == 3); // color jpeg
+		assert(ptr[4] == 3);
 		if (len != (6 + 2 * ptr[4])) return false;
 		for (int i = 0; i < 3; ++i) {
 			unsigned char id = ptr[5 + 2 * i];
@@ -649,7 +636,6 @@ class Image {
 		}
 		size_t len = 0;
 		bool result = true;
-		std::cout << (int)(ptr[1]) << '\n';
 		switch (ptr[1])
 		{
 		case 0xc0:
@@ -667,13 +653,11 @@ class Image {
 			result = ParseSOS(len);
 			if (!result) return false;
 			const unsigned char* t = ptr + 2 + len;
-			std::cout << "ImageInfo: " << resartInterval << " reset\n" << info << std::endl;
 			std::optional<const unsigned char*> res = ParseImage(t); ///< t reference
 			result = res.has_value();
 			if (res) {
 				t = res.value();
 				assert(t[0] == 0xff && t[1] == 0xd9);
-				stata = STATE::FINISH;
 			}
 			len = t - ptr - 2;
 		}	break;
@@ -699,15 +683,12 @@ class Image {
 		case 0xd7:
 			break;
 		case 0xd8:
-			std::cout << "pic start";
 			break;
 		case 0xd9:
-			std::cout << "reached end of pic\n";
+			stata = STATE::FINISH;
 			break;
 		default:
 			len = GetLen();
-			std::cout << "not ignored block: " << std::hex
-				<< static_cast<int>(ptr[1]) << '\n';
 			break;
 		}
 		ptr += len + 2;
