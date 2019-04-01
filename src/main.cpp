@@ -31,6 +31,7 @@ class Image {
 	std::vector<std::string> errorStack;
 	size_t resartInterval = 0;
 	int dcs[7]; // max chanle id == 7
+	enum STATE { PARSING, FINISH} stata;
 	class DataItr {
 		const unsigned char * const data;
 		const unsigned char *itr;
@@ -126,10 +127,11 @@ class Image {
 					*itrD = ((0xFF >> offset) & *itr) << offset;
 					NextByte();
 					bits -= 8 - offset;
-					*itrD |= *itr >> (8 - bits);
+					*itrD |= (*itr >> (8 - bits)) << (offset - bits);
 					offset = bits;
 				} else {
-					*itrD = ((0xFF >> (8 - bits)) & *itr) << (8 - bits);
+					// *itrD = ((0xFF >> (8 - bits)) & *itr) << (8 - bits);
+					*itrD = (((0xFF >> offset) & *itr) << offset) & (0xFF << (8 - bits));
 					offset += bits;
 					CutOffset();
 				}
@@ -549,7 +551,7 @@ class Image {
 		int dcDiff = 0;
 
 		size_t posBuffer = itr.GetPosition();
-		if (posBuffer == 369)
+		if (posBuffer == 433165)
 			std::cout << "got it\n";
 		dcDiff = ReadValue(itr, dcLen);
 		
@@ -557,12 +559,10 @@ class Image {
 		du.value = (quadTables.DeQuad(comp.qautTable, 0, dcs[comp.id]) / 8) + 128;
 		// if (posBuffer > 20000) std::cerr << "4ooo\n";
 		if (du.value < 0) {
-			// std::cout << "erre: " << std::dec << (int)comp.id << ", d = " << du.value << '\n';
-			// if (du.value < -30)
-				// std::cout << std::dec << du.value << " offset\n";
+			std::cout << std::dec << du.chanleId << " <- id, val: ->" << du.value << " offset\n";
 			du.value = 0;
 		} else if (du.value > 255 ){
-			// std::cout << "erre: " << std::dec << (int)comp.id << ", d = " << (du.value - 255) << '\n';
+			std::cout << "erre: " << std::dec << (int)comp.id << ", d = " << (du.value - 255) << '\n';
 			du.value = 255;
 		}
 		huff_t sizeDecode;
@@ -607,7 +607,6 @@ class Image {
 				}
 				assert(resartInterval && mcus > 0 && (mcus % resartInterval) == 0);
 				itr.Align();
-				// std::cout << std::hex << (int)marker << std::dec << " reset marker: mcus: " << mcus << "\n";
 				assert(lastMarker == 0x00 || (lastMarker == 0xd7 && marker == 0xd0) || (lastMarker + 1 == marker));
 				lastMarker = marker;
 				for (int i = 0; i < 7; ++i) dcs[i] = 0;
@@ -673,10 +672,9 @@ class Image {
 			result = res.has_value();
 			if (res) {
 				t = res.value();
-				PrintInfo();
 				assert(t[0] == 0xff && t[1] == 0xd9);
+				stata = STATE::FINISH;
 			}
-			// while (t[0] != 0xff && t[1] != 0xd9) ++t;
 			len = t - ptr - 2;
 		}	break;
 		case 0xc4: 
@@ -717,11 +715,11 @@ class Image {
 	}
 	
 public:
-	Image(const std::vector<char>&& img) : data{ img } {
+	Image(const std::vector<char>&& img) : data{ img }, stata{ STATE::PARSING } {
 		ptr = reinterpret_cast<const unsigned char*>(data.data());
 	}
 	bool Parse() {
-		while (static_cast<std::size_t>(reinterpret_cast<const char*>(ptr) - data.data()) < data.size()) {
+		while (stata != STATE::FINISH) {
 			if (!ParseBlock()) {
 				errorStack.push_back("can't parse block");
 				return false;
@@ -750,10 +748,12 @@ public:
 };
 
 int main(void) {
-	std::cout << "Start open file t1.jpeg\n";
-	fs::path p("p1.jpg");
+	std::cout << "Filename: ";
+	std::string filename;
+	std::cin >> filename;
+	fs::path p(filename);
 	if (!fs::exists(p)) {
-		std::cerr << "file not found t1.jpeg\n";
+		std::cerr << "file not found " << filename << "\n";
 		return 0;
 	}
 	std::ifstream picture(p, std::ios::binary);
