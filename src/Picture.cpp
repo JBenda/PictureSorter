@@ -233,6 +233,7 @@ bool Image::ParseSOF(size_t len) {
 	const unsigned char *itr = ptr + 4;
 	info = { 0 };
 	info.precission = *itr; ++itr;
+	assert(info.precission == 8);
 	info.height = FuseBytes(itr); itr += 2;
 	info.width = FuseBytes(itr); itr += 2;
 	info.numComponents = static_cast<size_t>(*itr); ++itr;
@@ -294,23 +295,23 @@ int Image::ReadValue(DataItr& itr, size_t len) {
 
 Image::PictureData::QuadItr& Image::PictureData::QuadItr::operator++() {
 	++size;
-	++pos;
-	++colC;
-
-	if (colC == data.mSamX) {
-		pos += data.w - data.mSamX;
-		colC = 0;
-		++rowC;
-	}
-	if (rowC == data.mSamY) {
-		pos -= data.w * data.mSamY;
-		pos += data.mSamX;
-		rowC = 0;
-		w += data.mSamX;
-	}
-	if (w == data.w) {
-		pos += data.w * (data.mSamY - 1);
+	if (size % (data.mSamX * data.mSamY) == 0)
+		++w;
+	if (pos % Image::dimX < Image::dimX - 1 && w > limW) {
+		++pos;
+		limW += bPerPxW;
+	} else if (w == data.w / data.mSamX) {
+		++h;
+		pos -= Image::dimX - 1;
 		w = 0;
+		limW = bPerPxW;
+	}
+	if (pos / Image::dimY < Image::dimY - 1 && h > limH) {
+		limH += bPerPxH;
+		pos += Image::dimX;
+	}
+	if (pos > 10000) {
+		std::cout << "test\n";
 	}
 	return *this;
 }
@@ -337,7 +338,7 @@ Image::PictureData::PictureData(enum COLOR_TYPE t, size_t width, size_t height, 
 	height >>= 3;
 	if (width % 2) ++width;
 	if (height % 2) ++height;
-	size_t size = width * height;
+	size_t size = dimX * dimY;
 	if (cType == COLOR) {
 		channles[0].resize(size);
 		channles[1].resize(size);
@@ -349,18 +350,19 @@ Image::PictureData::PictureData(enum COLOR_TYPE t, size_t width, size_t height, 
 	else assert(false);
 }
 
+// 
 void Image::PictureData::AddValues(size_t id, Image::chanel_t val, size_t times) {
 	assert((id == 1 && times == 1) || times == 4);
 	static size_t count = 0;
 	if (id == 1) ++count;
-	std::vector<chanel_t>& chanel = GetChanel(id);
+	std::vector<MeanType>& chanel = GetChanel(id);
 	QuadItr& itr = GetWritten(id);
 	for (int i = 0; i < times; ++i, ++itr) {
-		chanel[itr.GetPos()] = val;
+		chanel[itr.GetPos()] += val;
 	}
 }
 
-std::vector<Image::chanel_t>& Image::PictureData::GetChanel(size_t id) {
+std::vector<Image::MeanType>& Image::PictureData::GetChanel(size_t id) {
 	if (cType == COLOR_TYPE::COLOR) {
 		--id;
 		assert(id < 3);
@@ -442,6 +444,7 @@ std::optional<const unsigned char*> Image::ParseImage(const unsigned char* data)
 		ParseMCU(itr);
 		++mcus;
 	}
+	picture->CalcMean();
 	return std::optional<const unsigned char*>(itr.GetPtr());
 }
 

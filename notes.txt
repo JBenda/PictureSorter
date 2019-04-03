@@ -1,0 +1,2 @@
+## save time
+Quad table class -> array (only need one number per table)

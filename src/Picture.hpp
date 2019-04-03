@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <fstream>
@@ -8,12 +10,25 @@
 #include <cassert>
 #include <optional>
 #include <memory>
+#include "General.hpp"
 
 namespace fs = std::filesystem;
-
 class Image {
+	class MeanType {
+		size_t data;
+		int amount;
+		enum STATE { fill, fin } state = fill;
+	public:
+		MeanType() : data{ 0 }, amount{ 0 } {}
+		void Mean() { assert(state == fill); data /= amount; state = fin; }
+		MeanType& operator+= (size_t add) { data += add; ++amount; return *this; }
+		operator size_t() const {
+			assert(state == fin);
+			return data;
+		}
+	};
 	typedef std::size_t size_t;
-	typedef int chanel_t;
+	typedef unsigned char chanel_t;
 	typedef unsigned char huff_t;
 	enum BLOCK_TYPES { UNDEF = 0x00, SOI = 0xd8 };
 	const std::vector<char> data;
@@ -153,19 +168,27 @@ class Image {
 		chanel_t value;
 	};
 	class PictureData {
-		std::vector<chanel_t> channles[3];
+		std::vector<MeanType> channles[3];
 		struct ImageData {
 			const size_t h, w, mSamX, mSamY, sampleBlock;
 			ImageData(size_t heigh, size_t width, size_t maxSampX, size_t maxSampY, size_t sampPerBlock)
 				: h{ heigh / 8 }, w{ width / 8 }, mSamX{ maxSampX }, mSamY{ maxSampY }, sampleBlock{ sampPerBlock } {}
 		} data;
 		class QuadItr {
-			size_t size, pos, colC, rowC, w;
+			size_t size, pos, w, h;
+			const float bPerPxH, bPerPxW;
+			float limW, limH;
 			const ImageData& data;
 		public:
 			const size_t& GetPos() { return pos; }
 			const size_t& GetSize() { return size; }
-			QuadItr(const ImageData& pic) : data{ pic }, size{ 0 }, pos{ 0 }, colC{ 0 }, rowC{ 0 }, w{ 0 } {}
+			QuadItr(const ImageData& pic) : data{ pic }, size{ 0 }, pos{ 0 }, w{ 0 }, h{ 0 },
+				bPerPxH{ static_cast<float>(pic.h / pic.mSamY) / static_cast<float>(Image::dimY) },
+				bPerPxW{ static_cast<float>(pic.w / pic.mSamX) / static_cast<float>(Image::dimX) }
+					{
+				limW = bPerPxW;
+				limH = bPerPxH;
+			}
 			QuadItr& operator++();
 		};
 		std::vector<QuadItr> written;
@@ -174,7 +197,8 @@ class Image {
 		const enum COLOR_TYPE { COLOR, BW } cType;
 		PictureData(enum COLOR_TYPE t, size_t width, size_t height, size_t maxSampleHor, size_t maxSampleVer);
 		void AddValues(size_t id, chanel_t val, size_t times = 1);
-		std::vector<chanel_t>& GetChanel(size_t id);
+		void CalcMean() { for (std::vector<MeanType>& mts : channles) for (MeanType& mt : mts) mt.Mean(); };
+		std::vector<MeanType>& GetChanel(size_t id);
 	};
 
 	/** @param id channle id */
@@ -199,8 +223,14 @@ class Image {
 	bool ParseBlock();
 
 public:
+	constexpr static size_t dimX = 100;
+	constexpr static size_t dimY = 100;
+	constexpr static size_t memorySize =  dimX * dimY;
 	Image(const std::vector<char>&& img) : data{ img }, stata{ STATE::PARSING } {
 		ptr = reinterpret_cast<const unsigned char*>(data.data());
+	}
+	const std::vector<MeanType> GetGrayChanel() {
+		return picture->GetChanel(1);
 	}
 	bool Parse() {
 		while (stata != STATE::FINISH) {
@@ -216,16 +246,23 @@ public:
 		std::cout << "FileName: ";
 		std::cin >> name;
 		std::ofstream file(name + ".pgm");
-		const std::vector<int>& chanel = picture->GetChanel(1);
-		file << "P2\n" << (info.width / 8) << ' ' << (info.height / 8) << '\n' << ((0x01 << info.precission) - 1) << '\n';
+		const std::vector<MeanType>& chanel = picture->GetChanel(1);
+		file << "P2\n" << Image::dimX << ' ' << Image::dimY << '\n' << ((0x01 << info.precission) - 1) << '\n';
 		for (const int& i : chanel) {
 			file << i << ' ';
 		}
+		file.close();
 	}
 	void PrintError() const {
 		std::cerr << "Error trace:\n";
 		for (const auto& s : errorStack) {
 			std::cerr << '\t' << s << '\n';
 		}
+	}
+	friend std::ofstream& operator<<(std::ofstream& ofs, Image& img) {
+		for (const chanel_t& data : img.picture->GetChanel(1)) {
+			ofs.write(reinterpret_cast<const char*>(&data), sizeof(chanel_t));
+		}
+		return ofs;
 	}
 };
