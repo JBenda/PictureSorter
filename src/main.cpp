@@ -1,7 +1,10 @@
 #include "Picture.hpp"
+#include "Cluster.hpp"
 
 
 int main(void) {
+	unsigned char testDat[] = "hallo";
+	GPUMagic::CalculateSim(testDat, 0);
 	std::cout << "Filename: ";
 	std::string filename;
 	std::cin >> filename;
@@ -16,9 +19,9 @@ int main(void) {
 		return 0;
 	}
 	int len = fs::file_size(p);
-	std::vector<char> data(len);
-	picture.read(data.data(), len);
-	Image img(std::move(data));
+	std::vector<char> fileData(len);
+	picture.read(fileData.data(), len);
+	Image img(std::move(fileData));
 	if (!img.Parse()) {
 		std::cerr << "Failed to parse\n";
 		img.PrintError();

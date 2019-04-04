@@ -10,5 +10,10 @@ file(GLOB SOURCE_FILES
 )
 
 
+find_package( OpenCL REQUIRED )
+
+include_directories( "C:/Program Files (x86)/IntelSWTools/OpenCL/sdk/include" )
+link_directories( "C:/Program Files (x86)/IntelSWTools/OpenCL/sdk/lib/x86" )
+
 add_executable(api ${SOURCE_FILES})
-target_link_libraries(api ${OPENCL_cl_LIBRARY})
+target_link_libraries(api OpenCL.lib)
