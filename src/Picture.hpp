@@ -15,12 +15,12 @@
 namespace fs = std::filesystem;
 class Image {
 	class MeanType {
-		size_t data;
+		mutable size_t data;
 		int amount;
-		enum STATE { fill, fin } state = fill;
+		mutable enum STATE { fill, fin } state = fill;
 	public:
 		MeanType() : data{ 0 }, amount{ 0 } {}
-		void Mean() { assert(state == fill); data /= amount; state = fin; }
+		size_t Mean() const { assert(state == fill); data /= amount; state = fin; return data; }
 		MeanType& operator+= (size_t add) { data += add; ++amount; return *this; }
 		operator size_t() const {
 			assert(state == fin);
@@ -79,11 +79,12 @@ class Image {
 				std::memcpy(data.data(), table, precisson * 64);
 			}
 			int DeQuad(size_t pos, int val) const;
+			size_t GetSize() { return prec * 64; }
 		};
 		std::vector<QuadTable> tables;
 	public:
 		QuadTables() : tables{} {}
-		bool AddTable(size_t id, size_t precission, const unsigned char* data);
+		size_t AddTable(size_t id, size_t precission, const unsigned char* data);
 		int DeQuad(size_t id, size_t pos, int val) const;
 	} quadTables;
 	class HuffmanTables {
@@ -198,7 +199,16 @@ class Image {
 		PictureData(enum COLOR_TYPE t, size_t width, size_t height, size_t maxSampleHor, size_t maxSampleVer);
 		void AddValues(size_t id, chanel_t val, size_t times = 1);
 		void CalcMean() { for (std::vector<MeanType>& mts : channles) for (MeanType& mt : mts) mt.Mean(); };
+		void CalcMean(size_t id, std::vector<float>& res) const {
+			assert(res.size() == GetChanel(id).size());
+			std::vector<float>::iterator itr = res.begin();
+			for (const MeanType& mt : GetChanel(id)) {
+				*itr = mt.Mean();
+				++itr;
+			}
+		}
 		std::vector<MeanType>& GetChanel(size_t id);
+		const std::vector<Image::MeanType>& Image::PictureData::GetChanel(size_t id) const;
 	};
 
 	/** @param id channle id */
@@ -210,9 +220,7 @@ class Image {
 
 	bool ParseSOS(size_t len);
 
-	bool ParseQuadTable(size_t len) {
-		return quadTables.AddTable(ptr[4] & 0x0F, (ptr[4] >> 4) + 1, ptr + 5);
-	}
+	bool ParseQuadTable(size_t len);
 
 	bool ParseDRI(size_t len) {
 		assert(len == 4);
@@ -223,14 +231,22 @@ class Image {
 	bool ParseBlock();
 
 public:
+	typedef float color_t;
 	constexpr static size_t dimX = 100;
 	constexpr static size_t dimY = 100;
-	constexpr static size_t memorySize =  dimX * dimY;
-	Image(const std::vector<char>&& img) : data{ img }, stata{ STATE::PARSING } {
+	constexpr static size_t memorySize =  dimX * dimY * sizeof(color_t);
+private:
+	mutable std::vector<color_t> grayChanle;
+	bool grayValueCalculated;
+public:
+	Image(const std::vector<char>&& img) : data{ img }, stata{ STATE::PARSING }, grayChanle(dimX * dimY), grayValueCalculated{ false }{
 		ptr = reinterpret_cast<const unsigned char*>(data.data());
 	}
-	const std::vector<MeanType> GetGrayChanel() {
-		return picture->GetChanel(1);
+	const std::vector<color_t>& GetGrayChanel() const {
+		if (grayValueCalculated)
+			return grayChanle;
+		picture->CalcMean(1, grayChanle);
+		return grayChanle;
 	}
 	bool Parse() {
 		while (stata != STATE::FINISH) {
@@ -246,7 +262,7 @@ public:
 		std::cout << "FileName: ";
 		std::cin >> name;
 		std::ofstream file(name + ".pgm");
-		const std::vector<MeanType>& chanel = picture->GetChanel(1);
+		const std::vector<float>& chanel = GetGrayChanel();
 		file << "P2\n" << Image::dimX << ' ' << Image::dimY << '\n' << ((0x01 << info.precission) - 1) << '\n';
 		for (const int& i : chanel) {
 			file << i << ' ';
@@ -260,9 +276,7 @@ public:
 		}
 	}
 	friend std::ofstream& operator<<(std::ofstream& ofs, Image& img) {
-		for (const chanel_t& data : img.picture->GetChanel(1)) {
-			ofs.write(reinterpret_cast<const char*>(&data), sizeof(chanel_t));
-		}
+		ofs.write(reinterpret_cast<const char*>(img.GetGrayChanel().data()), Image::memorySize);
 		return ofs;
 	}
 };

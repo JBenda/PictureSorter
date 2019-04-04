@@ -333,7 +333,7 @@ bool Operations::groupToFolderStruct() {
   return true;
 }
 
-Operations::Operations(const fs::path& path, bool isInit = false) : _cStore{.0}, _path{path} {
+Operations::Operations(const fs::path& path, bool isInit) : _cStore{.0}, _path{path} {
   if(fs::exists(_path / "PicMeta.dat"))
     isInit = true;
   if(isInit) {
@@ -434,12 +434,12 @@ void Operations::print() {
 bool Operations::CalculateSim(size_t numElements, size_t updatesElements) {
 	_picData.open((_path / "Pic.dat").string(), std::ifstream::binary);
 	size_t size = fs::file_size((_path / "Pic.dat"));
-	std::vector<char> buff(size);
-	_picData.read(buff.data(), size);
-
-
-
+	std::vector<float> buff(size);
+	_picData.read(reinterpret_cast<char*>(buff.data()), size);
 	_picData.close();
+
+	GPUMagic::CalculateSim(buff.data(), Image::dimX * Image::dimY, size / (sizeof(float) * Image::dimX * Image::dimY));
+
 	return true;
 }
 /*

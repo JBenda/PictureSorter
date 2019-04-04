@@ -7,6 +7,7 @@ add_compile_options( /std:c++17 )
 file(GLOB SOURCE_FILES
 	"src/*.cpp"
 	"src/*.hpp"
+	"src/*.cl"
 )
 
 

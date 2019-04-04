@@ -1,10 +1,62 @@
 #include "Picture.hpp"
 #include "Cluster.hpp"
+#include "Operations.hpp"
+#include <filesystem>
 
+namespace fs = std::filesystem;
 
+/* int main(int argn, char** argv) {
+	Operations opt(fs::path(std::string(".")));
+	if (argn < 2) {
+		std::cout << "no so\n";
+		return 1;
+	}
+	std::string arg1(argv[1]);
+	if (argn == 2) {
+		if (!arg1.compare("--help")) {
+			std::cout << "init\t:init System\nupdate\t:updtae folder\nsim [fileName]\t:search al sim pictures";
+			return 0;
+		}
+		else if (!arg1.compare("list")) {
+			opt.print();
+		}
+		else if (!arg1.compare("init")) {
+			opt.initDatabase();
+			return 0;
+		}
+		else if (!arg1.compare("update")) {
+			opt.updateDatabase();
+			return 0;
+		}
+		else if (!arg1.compare("order")) {
+			opt.groupToFolderStruct();
+		}
+	}
+	else if (argn == 3) {
+		if (!arg1.compare("sim")) {
+			for (const fs::path& p : opt.getGroup(fs::path(std::string(argv[2])))) {
+				std::cout << p << '\n';
+			}
+		}
+		else if (!arg1.compare("reSort")) {
+			opt.printPath(6);
+			double value = -1.;
+			sscanf(argv[2], "%lf", &value);
+			opt.printPath(7);
+			if (value >= .0)
+				opt.resort(value);
+			else {
+				std::cout << "enter Sim Value for next Sort\n";
+				return 0;
+			}
+		}
+		else if (!arg1.compare("del")) {
+			opt.queueDelet(fs::relative(fs::path(argv[2])));
+			opt.delet();
+		}
+	}
+} */
 int main(void) {
-	unsigned char testDat[] = "hallo";
-	GPUMagic::CalculateSim(testDat, 0);
 	std::cout << "Filename: ";
 	std::string filename;
 	std::cin >> filename;
@@ -30,89 +82,4 @@ int main(void) {
 	img.PrintInfo();
 	return 0;
 	// Create the two input vectors
-	/* int i;
-	const int LIST_SIZE = 1024;
-	int *A = (int*)malloc(sizeof(int)*LIST_SIZE);
-	int *B = (int*)malloc(sizeof(int)*LIST_SIZE);
-	for (i = 0; i < LIST_SIZE; i++) {
-		A[i] = i;
-		B[i] = LIST_SIZE - i;
-	}
-
-	FILE *fp;
-	char *source_str;
-	size_t source_size;
-	fp = fopen("vector_add.cl", "r");
-	if (!fp) {
-		fprintf(stderr, "Failed to load kernel.\n");
-		exit(1);
-	}
-	source_str = (char*)malloc(MAX_SOURCE_SIZE);
-	source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
-	fclose(fp);
-
-	
-	cl_platform_id platform_id = NULL;
-	cl_device_id device_id = NULL;
-	cl_uint ret_num_devices;
-	cl_uint ret_num_platforms;
-	cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-	ret = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, 1,
-		&device_id, &ret_num_devices);
-
-	cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &ret);
-
-	cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
-
-	cl_mem a_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY,
-		LIST_SIZE * sizeof(int), NULL, &ret);
-	cl_mem b_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY,
-		LIST_SIZE * sizeof(int), NULL, &ret);
-	cl_mem c_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-		LIST_SIZE * sizeof(int), NULL, &ret);
-
-	ret = clEnqueueWriteBuffer(command_queue, a_mem_obj, CL_TRUE, 0,
-		LIST_SIZE * sizeof(int), A, 0, NULL, NULL);
-	ret = clEnqueueWriteBuffer(command_queue, b_mem_obj, CL_TRUE, 0,
-		LIST_SIZE * sizeof(int), B, 0, NULL, NULL);
-
-	cl_program program = clCreateProgramWithSource(context, 1,
-		(const char **)&source_str, (const size_t *)&source_size, &ret);
-
-	ret = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
-	cl_kernel kernel = clCreateKernel(program, "vector_add", &ret);
-
-	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&a_mem_obj);
-	ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&b_mem_obj);
-	ret = clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&c_mem_obj);
-
-	// Execute the OpenCL kernel on the list
-	size_t global_item_size = LIST_SIZE; // Process the entire lists
-	size_t local_item_size = 64; // Divide work items into groups of 64
-	ret = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL,
-		&global_item_size, &local_item_size, 0, NULL, NULL);
-
-	// Read the memory buffer C on the device to the local variable C
-	int *C = (int*)malloc(sizeof(int)*LIST_SIZE);
-	ret = clEnqueueReadBuffer(command_queue, c_mem_obj, CL_TRUE, 0,
-		LIST_SIZE * sizeof(int), C, 0, NULL, NULL);
-
-	// Display the result to the screen
-	for (i = 0; i < LIST_SIZE; i++)
-		printf("%d + %d = %d\n", A[i], B[i], C[i]);
-
-	// Clean up
-	ret = clFlush(command_queue);
-	ret = clFinish(command_queue);
-	ret = clReleaseKernel(kernel);
-	ret = clReleaseProgram(program);
-	ret = clReleaseMemObject(a_mem_obj);
-	ret = clReleaseMemObject(b_mem_obj);
-	ret = clReleaseMemObject(c_mem_obj);
-	ret = clReleaseCommandQueue(command_queue);
-	ret = clReleaseContext(context);
-	free(A);
-	free(B);
-	free(C);
-	return 0; */
 }

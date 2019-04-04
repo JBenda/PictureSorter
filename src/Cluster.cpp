@@ -1,6 +1,6 @@
 #include "Cluster.hpp"
 
-void GPUMagic::CalculateSim(const unsigned char* PicData, size_t amt) {
+void GPUMagic::CalculateSim(const float* pictureData, size_t px, size_t amtImgs) {
 	std::vector<cl::Platform> allPlatforms;
 	cl::Platform::get(&allPlatforms);
 
@@ -52,7 +52,42 @@ void GPUMagic::CalculateSim(const unsigned char* PicData, size_t amt) {
 	if (program.build(std::vector<cl::Device>(1, device)) != CL_SUCCESS) {
 		std::cerr << "Error building code: " << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device) << "\n";
 		exit(1);
-	}	
+	}
+
+	cl_int err;
+	cl::Buffer gColorData(context, CL_MEM_READ_ONLY, sizeof(float) * px * amtImgs, NULL, &err);
+	float *cMeta = new float[amtImgs * 2];
+	cl::Buffer gMeta(context, CL_MEM_READ_WRITE, sizeof(float) * 2 * amtImgs, NULL, &err);
+	float *cSims = new float[amtImgs * amtImgs / 2];
+	cl::Buffer gSims(context, CL_MEM_WRITE_ONLY, sizeof(float) * amtImgs * amtImgs / 2, NULL, &err);
+	if (err) {
+		std::cerr << "failed to allocate Buffer on GPU\n";
+		exit(1);
+	}
+
+	cl::CommandQueue queue(context, device, NULL, &err);
+	if (err) {
+		std::cerr << "failed to create queue\n";
+		exit(1);
+	}
+
+	queue.enqueueWriteBuffer(gColorData, CL_FALSE, 0, sizeof(float) * px * amtImgs, pictureData);
+
+	cl::Event eCalcMetaData;
+	cl::Kernel mean_var(program, "mean_var");
+	mean_var.setArg(0, gColorData);
+	mean_var.setArg(1, gMeta);
+	mean_var.setArg(2, px);
+	queue.enqueueNDRangeKernel(mean_var, cl::NullRange, cl::NDRange(amtImgs), cl::NullRange, nullptr, &eCalcMetaData);
+	queue.enqueueReadBuffer(gMeta, CL_TRUE, 0, sizeof(float) *amtImgs * 2, cMeta);
+	
+	for (int i = 0; i < amtImgs; ++i) {
+		float mean = 0;
+		for (int j = 0; j < px; ++j)
+			mean += pictureData[i * px + j];
+		mean /= px;
+		std::cout << cMeta[i * 2] << " : " << cMeta[i * 2 + 1] << " vs " << mean << "\n";
+	}
 }
 
 bool GPUMagic::LoadCernalCode(const fs::path& path, cl::Program::Sources& srcs) {
@@ -67,6 +102,7 @@ bool GPUMagic::LoadCernalCode(const fs::path& path, cl::Program::Sources& srcs) 
 	fp.read(sourceStr, source_size);
 	srcs.push_back(std::pair<const char*, size_t>(sourceStr, source_size));
 	fp.close();
+	return true;
 }
 
 bool GPUMagic::FindExtenison(const char* pExts, const char* extension) {
@@ -74,7 +110,7 @@ bool GPUMagic::FindExtenison(const char* pExts, const char* extension) {
 	while (*pExts != 0) {
 		if (*pExts == ' ') {
 			if (*pExt == 0) {
-
+				true;
 				break;
 			}
 			pExt = extension;
@@ -84,6 +120,7 @@ bool GPUMagic::FindExtenison(const char* pExts, const char* extension) {
 		}
 		++pExts;
 	}
+	return false;
 }
 
 void GPUMagic::PrintPlatforms(const std::vector<cl::Platform>& platforms) {

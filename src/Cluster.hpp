@@ -15,7 +15,7 @@
 
 namespace GPUMagic {
 	namespace fs = std::filesystem;
-	void CalculateSim(const unsigned char* PicData, size_t amt);
+	void CalculateSim(const float* pictureData, size_t px, size_t amtImgs);
 	bool LoadCernalCode(const fs::path& path, cl::Program::Sources& srcs);
 	bool FindExtenison(const char* pExts, const char* extension);
 	void PrintPlatforms(const std::vector<cl::Platform>& platforms);

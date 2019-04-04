@@ -109,10 +109,10 @@ int Image::QuadTables::QuadTable::DeQuad(Image::size_t pos, int val) const {
 	assert(false);
 }
 
-bool Image::QuadTables::AddTable(size_t id, size_t precission, const unsigned char* data) {
+size_t Image::QuadTables::AddTable(size_t id, size_t precission, const unsigned char* data) {
 	assert(id == tables.size());
 	tables.emplace_back(precission, data);
-	return true;
+	return tables.back().GetSize() + 1;
 }
 
 int Image::QuadTables::DeQuad(size_t id, size_t pos, int val) const {
@@ -158,8 +158,9 @@ Image::HuffmanTables::HuffmanTabel::HuffmanTabel(const unsigned char* data) : bV
 		}
 		codes[i].Set(code, bytes[i]);
 		++code;
+		assert(!((0x01 << lenCode) & code));
 	}
-	encodedSize = len + 16;
+	encodedSize = len + 15;
 	bValid = true;
 }
 
@@ -268,7 +269,16 @@ bool Image::ParseSOF(size_t len) {
 }
 
 bool Image::ParseHuffmanTable(size_t len) {
-	for (size_t l = 4; l < len + 2; l += huffmanTables.AddTable(ptr + l));
+	size_t l;
+	for (l = 4; l < len + 2; l += huffmanTables.AddTable(ptr + l));
+	assert(l == len + 2);
+	return true;
+}
+
+bool Image::ParseQuadTable(size_t len) {
+	size_t l;
+	for (l = 4; l < len + 2; l +=quadTables.AddTable(ptr[l] & 0x0F, (ptr[l] >> 4) + 1, ptr + l + 1));
+	assert(l == len + 2);
 	return true;
 }
 
@@ -362,6 +372,18 @@ void Image::PictureData::AddValues(size_t id, Image::chanel_t val, size_t times)
 	}
 }
 
+const std::vector<Image::MeanType>& Image::PictureData::GetChanel(size_t id) const {
+	if (cType == COLOR_TYPE::COLOR) {
+		--id;
+		assert(id < 3);
+		return channles[id];
+	}
+	else {
+		id -= 4;
+		assert(id < 1);
+		return channles[id];
+	}
+}
 std::vector<Image::MeanType>& Image::PictureData::GetChanel(size_t id) {
 	if (cType == COLOR_TYPE::COLOR) {
 		--id;
@@ -444,7 +466,6 @@ std::optional<const unsigned char*> Image::ParseImage(const unsigned char* data)
 		ParseMCU(itr);
 		++mcus;
 	}
-	picture->CalcMean();
 	return std::optional<const unsigned char*>(itr.GetPtr());
 }
 

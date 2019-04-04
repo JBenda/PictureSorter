@@ -10,6 +10,7 @@
 #include <array>
 #include "CompareStore.hpp"
 #include "Picture.hpp"
+#include "Cluster.hpp"
 
 #define RESOLUTION 100
 // T1: id path data **Group**
@@ -31,7 +32,7 @@ public:
   void printPath(int i) {
     std::cout << "path" << i << ' ' << _path << '\n';
   }
-  Operations(const fs::path& path, bool isInit);
+  Operations(const fs::path& path, bool isInit = false);
   ~Operations();
   /** Group of Pic or subGroups, for Hirachig sorting Pics */
   class Group {
@@ -102,7 +103,7 @@ public:
 private:
   std::vector<fs::path> _deletQueue;
   CompareStore<double> _cStore;
-  const std::array<const std::string,2>  extensions = {".JPEG", ".JPG"};
+  const std::array<const std::string,4>  extensions = {".JPEG", ".JPG", ".jpg", ".jpeg"};
   typedef std::pair<std::string, PictureMeta> PictureMetaPath; /**< shortCut */
   double simScore(const PictureMetaPath& pPic1, const PictureMetaPath& pPic2);
   std::unordered_map<std::string, PictureMeta> _picMap;
