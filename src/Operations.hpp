@@ -120,5 +120,6 @@ private:
   bool sort(double value);
   void AddPicToFile(const fs::path& path, std::ofstream& ofs);
   // calculation from simularity on cpu or gpu what is more efficent
+public:
   bool CalculateSim(size_t numElements, size_t updatesElements);
 };

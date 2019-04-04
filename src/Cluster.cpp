@@ -22,7 +22,7 @@ void GPUMagic::CalculateSim(const float* pictureData, size_t px, size_t amtImgs)
 			if (!d.getInfo<CL_DEVICE_COMPILER_AVAILABLE>()
 				|| !(d.getInfo<CL_DEVICE_EXECUTION_CAPABILITIES>() & CL_EXEC_KERNEL)
 				|| !(d.getInfo<CL_DEVICE_QUEUE_PROPERTIES>() & CL_QUEUE_PROFILING_ENABLE)
-				|| !FindExtenison(d.getInfo<CL_DEVICE_EXTENSIONS>().c_str(), EXTENSION))
+				/*|| !FindExtenison(d.getInfo<CL_DEVICE_EXTENSIONS>().c_str(), EXTENSION)*/)
 				continue;
 			device = d;
 			platform = p;
@@ -58,8 +58,9 @@ void GPUMagic::CalculateSim(const float* pictureData, size_t px, size_t amtImgs)
 	cl::Buffer gColorData(context, CL_MEM_READ_ONLY, sizeof(float) * px * amtImgs, NULL, &err);
 	float *cMeta = new float[amtImgs * 2];
 	cl::Buffer gMeta(context, CL_MEM_READ_WRITE, sizeof(float) * 2 * amtImgs, NULL, &err);
-	float *cSims = new float[amtImgs * amtImgs / 2];
-	cl::Buffer gSims(context, CL_MEM_WRITE_ONLY, sizeof(float) * amtImgs * amtImgs / 2, NULL, &err);
+	unsigned int simAmt = (amtImgs * amtImgs - amtImgs) / 2;
+	float *cSims = new float[simAmt];
+	cl::Buffer gSims(context, CL_MEM_WRITE_ONLY, sizeof(float) * simAmt, NULL, &err);
 	if (err) {
 		std::cerr << "failed to allocate Buffer on GPU\n";
 		exit(1);
@@ -71,15 +72,29 @@ void GPUMagic::CalculateSim(const float* pictureData, size_t px, size_t amtImgs)
 		exit(1);
 	}
 
-	queue.enqueueWriteBuffer(gColorData, CL_FALSE, 0, sizeof(float) * px * amtImgs, pictureData);
+	queue.enqueueWriteBuffer(gColorData, CL_TRUE, 0, sizeof(float) * px * amtImgs, pictureData);
 
 	cl::Event eCalcMetaData;
 	cl::Kernel mean_var(program, "mean_var");
 	mean_var.setArg(0, gColorData);
 	mean_var.setArg(1, gMeta);
 	mean_var.setArg(2, px);
-	queue.enqueueNDRangeKernel(mean_var, cl::NullRange, cl::NDRange(amtImgs), cl::NullRange, nullptr, &eCalcMetaData);
+
+	cl::Event eCalcSim;
+	cl::Kernel calc_sim(program, "calc_sim");
+	calc_sim.setArg(0, gColorData);
+	calc_sim.setArg(1, gMeta);
+	calc_sim.setArg(2, gSims);
+	calc_sim.setArg(3, px);
+	calc_sim.setArg(4, amtImgs);
+	queue.enqueueNDRangeKernel(mean_var, cl::NullRange, cl::NDRange(amtImgs), cl::NullRange);
+
+	std::vector<cl::Event> waitList{eCalcMetaData};
+	queue.enqueueNDRangeKernel(calc_sim, cl::NullRange, cl::NDRange(simAmt), cl::NullRange);
+
+	waitList[0] = eCalcSim;
 	queue.enqueueReadBuffer(gMeta, CL_TRUE, 0, sizeof(float) *amtImgs * 2, cMeta);
+	queue.enqueueReadBuffer(gSims, CL_TRUE, 0, sizeof(float) * simAmt, cSims);
 	
 	for (int i = 0; i < amtImgs; ++i) {
 		float mean = 0;
@@ -88,18 +103,33 @@ void GPUMagic::CalculateSim(const float* pictureData, size_t px, size_t amtImgs)
 		mean /= px;
 		std::cout << cMeta[i * 2] << " : " << cMeta[i * 2 + 1] << " vs " << mean << "\n";
 	}
+	std::cout << std::setprecision(3);
+	for (int i = 0; i < amtImgs; ++i) {
+		std::cout << i << ":\t";
+		for (int j = 0; j < amtImgs; ++j) {
+			if (j <= i) { std::cout << "    \t"; }
+			else if (i * amtImgs + j < simAmt) { std::cout << cSims[i * amtImgs + j] << "\t"; }
+			else {
+				int x = amtImgs -j - 1;
+				int y = amtImgs - i - 2;
+				std::cout << cSims[y * amtImgs + x] << '\t';
+			}
+		}
+		std::cout << "\n";
+	}
 }
 
 bool GPUMagic::LoadCernalCode(const fs::path& path, cl::Program::Sources& srcs) {
-	std::ifstream fp(path);
+	std::ifstream fp(path, std::ios::binary);
 	size_t source_size;
 	if (!fp) {
 		fprintf(stderr, "Failed to load kernel.\n");
 		exit(1);
 	}
 	source_size = fs::file_size(path);
-	char *sourceStr = new char[source_size];
+	char *sourceStr = new char[source_size + 1];
 	fp.read(sourceStr, source_size);
+	sourceStr[source_size] = 0;
 	srcs.push_back(std::pair<const char*, size_t>(sourceStr, source_size));
 	fp.close();
 	return true;

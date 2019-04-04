@@ -79,9 +79,10 @@ std::size_t Operations::readFile(const fs::path& path, std::vector<unsigned char
 }
 
 void Operations::AddPicToFile(const fs::path& path, std::ofstream& ofs) {
+	assert(fs::exists(path));
 	size_t len = fs::file_size(path);
 	std::vector<char> data(len);
-	std::ifstream file(path);
+	std::ifstream file(path, std::ios::binary);
 	file.read(data.data(), len);
 	Image image(std::move(data));
 	image.Parse();
@@ -114,11 +115,12 @@ bool Operations::initDatabase()
   for(const fs::path& p : pathes) {
     std::cout << p.string() << '\n';
     _picMap.insert(PictureMetaPath(p.string(), PictureMeta(i, 0)));
-	
 	AddPicToFile(p, picDataFile);
     i++;
 
   }
+
+  std::cout << "fin meta calc\n";
 
   picDataFile.close();
   

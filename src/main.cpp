@@ -5,7 +5,7 @@
 
 namespace fs = std::filesystem;
 
-/* int main(int argn, char** argv) {
+int main(int argn, char** argv) {
 	Operations opt(fs::path(std::string(".")));
 	if (argn < 2) {
 		std::cout << "no so\n";
@@ -21,7 +21,8 @@ namespace fs = std::filesystem;
 			opt.print();
 		}
 		else if (!arg1.compare("init")) {
-			opt.initDatabase();
+			opt.CalculateSim(4, 4);
+			// opt.initDatabase();
 			return 0;
 		}
 		else if (!arg1.compare("update")) {
@@ -55,8 +56,8 @@ namespace fs = std::filesystem;
 			opt.delet();
 		}
 	}
-} */
-int main(void) {
+}
+/* int main(void) {
 	std::cout << "Filename: ";
 	std::string filename;
 	std::cin >> filename;
@@ -82,4 +83,4 @@ int main(void) {
 	img.PrintInfo();
 	return 0;
 	// Create the two input vectors
-}
+} */
