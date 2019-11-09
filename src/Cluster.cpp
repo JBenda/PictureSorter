@@ -1,6 +1,8 @@
 #include "Cluster.hpp"
 
-void GPUMagic::CalculateSim(const float* pictureData, size_t px, size_t amtImgs) {
+#include <iomanip>
+
+void GPUMagic::CalculateSim(const float* pictureData, size_t px, size_t amtImgs, float * sims) {
 	std::vector<cl::Platform> allPlatforms;
 	cl::Platform::get(&allPlatforms);
 
@@ -66,7 +68,7 @@ void GPUMagic::CalculateSim(const float* pictureData, size_t px, size_t amtImgs)
 		exit(1);
 	}
 
-	cl::CommandQueue queue(context, device, NULL, &err);
+	cl::CommandQueue queue(context, device, 0, &err);
 	if (err) {
 		std::cerr << "failed to create queue\n";
 		exit(1);
@@ -117,6 +119,22 @@ void GPUMagic::CalculateSim(const float* pictureData, size_t px, size_t amtImgs)
 		}
 		std::cout << "\n";
 	}
+        float *itr = sims;
+        for(int j = 0; j < amtImgs; ++j) {
+            itr += j;
+            for(int i = 0; i < amtImgs; ++i) {
+                if(j > i) {
+                    if(i * amtImgs + j < simAmt) {
+                        *(--itr) = cSims[i * amtImgs + j];
+                    } else {
+                        int x = amtImgs - j - 1;
+                        int y = amtImgs - i - 2;
+                        *(--itr) = cSims[y * amtImgs + x];
+                    }
+                }
+            }
+            itr += j;
+        }
 }
 
 bool GPUMagic::LoadCernalCode(const fs::path& path, cl::Program::Sources& srcs) {

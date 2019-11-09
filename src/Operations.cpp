@@ -49,6 +49,7 @@ double Operations::simScore(const PictureMetaPath& pPic1, const PictureMetaPath&
     return sim;
   }
   assert(false);
+  return 0;
 }
 
 /** read File raw Data in char vector
@@ -157,7 +158,7 @@ bool Operations::sort(double value) {
 
   for(pic1 = _picMap.begin(); pic1 != _picMap.end(); ++pic1) {
     for(pic2 = nextIttr(pic1); pic2 != _picMap.end(); ++pic2) {
-      if(pic2 == _picMap.end()) break;
+      // if(pic2 == _picMap.end()) break; TODO remove
       if (simScore(*pic1, *pic2) > value) { // TODO: set flex Value
         if(pic1->second.group || pic2->second.group) {  // one is in Group
           if(pic1->second.group && pic2->second.group) {  // mereg groups 
@@ -439,8 +440,18 @@ bool Operations::CalculateSim(size_t numElements, size_t updatesElements) {
 	std::vector<float> buff(size);
 	_picData.read(reinterpret_cast<char*>(buff.data()), size);
 	_picData.close();
+        _cStore.resize(numElements);
 
-	GPUMagic::CalculateSim(buff.data(), Image::dimX * Image::dimY, size / (sizeof(float) * Image::dimX * Image::dimY));
+	GPUMagic::CalculateSim(buff.data(), Image::dimX * Image::dimY, size / (sizeof(float) * Image::dimX * Image::dimY), _cStore.raw());
+
+        _cStore.print();
+        for(int y = 0; y < numElements; ++y) {
+            for(int x = 0; x < numElements; ++x) {
+                if(x != y) {
+                    std::cout << x << ":" << y << "\t" << _cStore.getCompare(y,x) << '\n';
+                }
+            }
+        }
 
 	return true;
 }

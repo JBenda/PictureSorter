@@ -1,5 +1,7 @@
 #include "Picture.hpp"
 
+#include <algorithm>
+
 void Image::DataItr::NextByte() {
 	if (itr[0] == 0xFF && itr[1] == 0)
 		itr += 2;
