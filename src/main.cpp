@@ -14,15 +14,15 @@ int main(int argn, char** argv) {
 	std::string arg1(argv[1]);
 	if (argn == 2) {
 		if (!arg1.compare("--help")) {
-			std::cout << "init\t:init System\nupdate\t:updtae folder\nsim [fileName]\t:search al sim pictures";
+			std::cout << "init\t:init System\nupdate\t:updtae folder\nsim [fileName]\t:search al sim pictures\n";
 			return 0;
 		}
 		else if (!arg1.compare("list")) {
 			opt.print();
 		}
 		else if (!arg1.compare("init")) {
-			opt.CalculateSim(4, 4);
-			// opt.initDatabase();
+			// opt.CalculateSim(4, 4);
+			opt.initDatabase();
 			return 0;
 		}
 		else if (!arg1.compare("update")) {

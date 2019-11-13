@@ -99,6 +99,9 @@ public:
       sum += i;
     }
   }
+  T* raw() {
+    return _store.data();
+  }
   
   void queueDelet(std::size_t id) {
     _deleteQueue.insert(id);
@@ -168,7 +171,7 @@ private:
   T& getEntry(std::size_t id1, std::size_t id2) {
     if(id1 < id2) std::swap(id1, id2);
     assert(id1 >= id2);
-    assert(_decode[id1]+(id1-id2)-1 < _store.size());
+    assert((_decode[id1]+(id1-id2)-1) < _store.size());
     return _store[_decode[id1] + (id1 - id2) - 1];
   }
   std::set<std::size_t> _deleteQueue;

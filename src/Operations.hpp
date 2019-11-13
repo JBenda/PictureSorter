@@ -102,7 +102,7 @@ public:
   void print();
 private:
   std::vector<fs::path> _deletQueue;
-  CompareStore<double> _cStore;
+  CompareStore<float> _cStore;
   const std::array<const std::string,4>  extensions = {".JPEG", ".JPG", ".jpg", ".jpeg"};
   typedef std::pair<std::string, PictureMeta> PictureMetaPath; /**< shortCut */
   double simScore(const PictureMetaPath& pPic1, const PictureMetaPath& pPic2);

@@ -10,17 +10,20 @@
 #include <cassert>
 #include <optional>
 #include <memory>
+#include <cstring>
 #include "General.hpp"
 
 namespace fs = std::filesystem;
 class Image {
 	class MeanType {
-		mutable size_t data;
+		mutable std::size_t data;
 		int amount;
 		mutable enum STATE { fill, fin } state = fill;
 	public:
 		MeanType() : data{ 0 }, amount{ 0 } {}
-		size_t Mean() const { assert(state == fill); data /= amount; state = fin; return data; }
+		std::size_t Mean() const { 
+                    if(amount == 0) return 0;
+                    assert(state == fill); data /= amount; state = fin; return data; }
 		MeanType& operator+= (size_t add) { data += add; ++amount; return *this; }
 		operator size_t() const {
 			assert(state == fin);
@@ -208,7 +211,7 @@ class Image {
 			}
 		}
 		std::vector<MeanType>& GetChanel(size_t id);
-		const std::vector<Image::MeanType>& Image::PictureData::GetChanel(size_t id) const;
+		const std::vector<Image::MeanType>& GetChanel(size_t id) const;
 	};
 
 	/** @param id channle id */
