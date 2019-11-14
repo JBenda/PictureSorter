@@ -14,6 +14,7 @@ set (PACKAGE_DIR  ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig CACHE PATH "path to ins
 set (INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR} CACHE STRING "library directory name")
 set (INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR} CACHE STRING "include directory name")
 set (LIB_TYPE "STATIC" CACHE STRING "STATIC or SHARED libs")
+set (BUILD_TEST YES CACHE BOOL "build tests")
 
 file(GLOB SOURCE_FILES
 	"src/*.cpp"
@@ -49,3 +50,9 @@ install(TARGETS fJPG
 	PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}	
 )
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/fJPGConfig.cmake DESTINATION ${PACKAGE_DIR})
+
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TEST)
+	add_subdirectory (test)
+	enable_testing()
+	add_test ( NAME ImageTests COMMAND Test)
+endif()
