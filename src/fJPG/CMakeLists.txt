@@ -15,6 +15,7 @@ set (INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR} CACHE STRING "library directory name
 set (INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR} CACHE STRING "include directory name")
 set (LIB_TYPE "STATIC" CACHE STRING "STATIC or SHARED libs")
 set (BUILD_TEST YES CACHE BOOL "build tests")
+set (ALL_TEST NO CACHE BOOL "force test for each level")
 
 file(GLOB SOURCE_FILES
 	"src/*.cpp"
@@ -52,7 +53,7 @@ install(TARGETS fJPG
 )
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/fJPGConfig.cmake DESTINATION ${PACKAGE_DIR})
 
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TEST)
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TEST OR ALL_TEST)
 	add_subdirectory (test)
 	enable_testing()
 	add_test ( NAME ImageTests COMMAND Test)

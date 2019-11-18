@@ -33,10 +33,10 @@ endif()
 
 # find_package( OpenCL REQUIRED )
 
-include_directories("/home/bendajul/cuda_65/include/")
-link_directories( "/home/bendajul/cuda_65/lib64" )
+# include_directories("/home/bendajul/cuda_65/include/")
+# link_directories( "/home/bendajul/cuda_65/lib64" )
 
-# find_package( OpenCL REQUIRED )
+find_package( OpenCL REQUIRED )
 # message(" ${OpenCL_INCLUDE_DIRS} : ${OpenCL_LIBRARIES}")
 
 # include_directories( "C:/Program Files (x86)/IntelSWTools/OpenCL/sdk/include" )
@@ -55,9 +55,13 @@ else()
 	target_link_libraries(api fJPG)
 endif()
 
-
-target_link_libraries(api stdc++fs  OpenCL)
-# target_link_libraries(api OpenCL)
+target_include_directories(api PRIVATE ${OpenCL_INCLUDE_DIRS})
+target_link_libraries(api ${OpenCL_LIBRARIES})
+if(CMAKE_COMPILER_IS_GNUCC)
+	target_link_libraries(api std++fs)
+endif()
 
 install(TARGETS api 
 	RUNTIME DESTINATION ${INSTALL_BINDIR})
+
+

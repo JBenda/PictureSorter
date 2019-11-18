@@ -5,6 +5,7 @@
 
 std::ostream& operator<<(std::ostream& os, const fJPG::HuffTable::Node& node) {
 	os << '(' << (int)node.l << '|' << (int)node.r << ')';
+	return os;
 }
 bool operator!=(const fJPG::HuffTable::Node& n1, const fJPG::HuffTable::Node& n2) {
 	return n1.l != n2.l || n1.r != n2.r;

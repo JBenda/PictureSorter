@@ -39,7 +39,7 @@ namespace fJPG {
 			_next = _stack[--_floor];
 		}
 		void up() {
-			std::size_t last;
+			uint8_t last;
 			do{
 				last = _next;
 				pop();
@@ -57,7 +57,7 @@ namespace fJPG {
 		operator bool() {
 			return !_end;
 		}
-		std::size_t floor() const { return _floor; }
+		uint8_t floor() const { return _floor; }
 		void set(uint8_t value) {
 #ifdef DEBUG
 			assert(!_end);
@@ -85,10 +85,10 @@ namespace fJPG {
 			: _tree{tree}{}
 	private:
 		bool _end{false};
-		std::size_t _next{0};
-		std::size_t _length{0};
-		std::size_t _floor{0};
-		std::array<std::size_t, DEPTH> _stack;
+		uint8_t _next{0};
+		uint8_t _length{0};
+		uint8_t _floor{0};
+		std::array<uint8_t, DEPTH> _stack;
 		HuffTable::Node*const& _tree;
 	};
 }

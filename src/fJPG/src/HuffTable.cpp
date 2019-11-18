@@ -57,5 +57,6 @@ namespace fJPG {
 #endif
 			}
 		}
+		return is;
 	}
 }
