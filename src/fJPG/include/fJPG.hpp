@@ -6,7 +6,6 @@
 #include <string>
 
 namespace fJPG {
-	class Picture;
 	typedef unsigned char color_t;
 
 	template<typename T>
@@ -14,11 +13,21 @@ namespace fJPG {
 		T x{0};
 		T y{0};
 	} ;
+	
+	enum struct ColorEncoding {
+		BW8,
+		RGB8,
+		YCrCb8	
+	};
+
+	template<ColorEncoding>
+	class Picture;
 
 	template<typename itr_t>
 	class Channel  {
-		friend Picture;
-		Channel(itr_t begin, itr_t end) : _begin(begin), _end(end);
+		template<ColorEncoding>
+		friend class Picture;
+		Channel(itr_t begin, itr_t end) : _begin(begin), _end(end) {}
 	public:
 		const itr_t& begin() const { return _begin; }
 		const itr_t& end() const { return _end; }
@@ -27,41 +36,46 @@ namespace fJPG {
 		itr_t _end;
 	} ;				
 
+
+	template<ColorEncoding C>
 	class Picture {
-		void validateChanel(const std::size_t x) {
-			if ( x >= _channnels) {
-				throw std::string("channel out of bound") + #__FILE__##__LINE__;
+		void validateChannel(const std::size_t x) {
+			if ( x >= _channels) {
+				throw std::string("channel out of bound");
 			}
 		}
 	public:
-		const Dim& GetSize() const { return _size; }	
-		Channel<std::vector<color_t>::const_iterator> GetChanel(std::size_t x) const {
-			validateChanel(x);
+		static constexpr ColorEncoding ENCODING = C;
+		const Dim<std::size_t>& GetSize() const { return _size; }	
+		Channel<std::vector<color_t>::const_iterator> GetChannel(std::size_t x) const {
+			validateChannel(x);
 
-			return Chanel(_data.cbegin() + _nPx * x, _data.cbegin() + _nPx * (x + 1));
+			return Channel(_data.cbegin() + _nPx * x, _data.cbegin() + _nPx * (x + 1));
 		}
 
 		Picture() = default;
 		Picture(const Picture&) = delete;
 		Picture& operator=(const Picture&) = delete;
+		Picture(Picture&&) = default;
+		Picture& operator=(Picture&&) = default;
 	protected:
 		Picture(Dim<std::size_t> size, std::size_t channels)
 			: _size{size}, _channels{channels}, _nPx{size.x * size.y}, _data(_nPx * _channels){}
 
-		Channel<std::vector<color_t>::iterator> GetChanel(std::size_t x)	{
-			validateChanel(x)	;
+		Channel<std::vector<color_t>::iterator> GetChannel(std::size_t x)	{
+			validateChannel(x)	;
 
-			return Chanel(
+			return Channel(
 						_data.begin() + _nPx * x,
 						_data.begin() + _nPx * ( x + 1)
 					);
 		}
 	private:
 		Dim<std::size_t> _size{0};
-		std::size_t _channnels{0};
+		std::size_t _channels{0};
 		std::size_t _nPx{0};
-		std::vector<color_t> _data(0);
+		std::vector<color_t> _data{};
 	} ;
 
-	Picture Convert(std::istream& input);
+	Picture<ColorEncoding::YCrCb8> Convert(std::istream& input);
 }

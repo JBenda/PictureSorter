@@ -21,7 +21,7 @@ file(GLOB SOURCE_FILES
 )
 
 file(GLOB PUBLIC_HEADER_FILES
-	"include/*.hpp"
+	"include/fJPG.hpp"
 )
 
 if(LIB_TYPE STREQUAL "STATIC")
@@ -36,6 +36,7 @@ endif()
 target_include_directories(fJPG PUBLIC include)
 
 set_target_properties(fJPG PROPERTIES VERSION ${PROJECT_VERSION})
+message("${PUBLIC_HEADER_FILES}")
 set_target_properties(fJPG PROPERTIES PUBLIC_HEADER ${PUBLIC_HEADER_FILES} )
 
 
