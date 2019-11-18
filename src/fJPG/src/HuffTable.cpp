@@ -14,10 +14,10 @@ namespace fJPG {
 		uint8_t c = 0;
 #endif
 		do {
-			n = data & (0x01 << 15)
+			n = data & (0x01)
 				? tree[n.r]
 				: tree[n.l];
-			data <<= 1;
+			data >>= 1;
 #ifdef DEBUG
 			++c;
 			assert(c < 16);
@@ -50,7 +50,7 @@ namespace fJPG {
 		LazyTreePreIterator<15> itr(h.tree);	
 		for(std::size_t f = 0; f < 16; ++f) {
 			for(std::size_t i = 0; i < codes[f]; ++i) {
-				while(itr.floor() != f) ++itr;
+				while(itr.floor() != f+1) ++itr;
 					itr.set(*(value++));
 #ifdef DEBUG
 					assert(nCodes-- > 0);

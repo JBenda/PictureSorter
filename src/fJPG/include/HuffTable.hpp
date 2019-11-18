@@ -33,10 +33,10 @@ namespace fJPG {
 	template<std::size_t DEPTH>
 	class LazyTreePreIterator {
 		void push() {
-			_stack[_floor++] = _next; 
+			_stack[++_floor] = _next; 
 		}
 		void pop() {
-			_next = _stack[--_floor];
+			_next = _stack[_floor--];
 		}
 		void up() {
 			uint8_t last;
@@ -86,7 +86,7 @@ namespace fJPG {
 	private:
 		bool _end{false};
 		uint8_t _next{0};
-		uint8_t _length{0};
+		uint8_t _length{1};
 		uint8_t _floor{0};
 		std::array<uint8_t, DEPTH> _stack;
 		HuffTable::Node*const& _tree;

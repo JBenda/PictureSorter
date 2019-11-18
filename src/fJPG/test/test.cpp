@@ -1,7 +1,13 @@
 #include "api.hpp"
 #include <cassert>
 #include <iostream>
+#include <fstream>
 #include "HuffTable.hpp"
+
+#ifndef SAMPLE_DIR
+#define SAMPLE_DIR "."
+#endif // !SAMPLE_DIR
+
 
 std::ostream& operator<<(std::ostream& os, const fJPG::HuffTable::Node& node) {
 	os << '(' << (int)node.l << '|' << (int)node.r << ')';
@@ -17,13 +23,12 @@ int main(int argc, char *argv[])
 
 	fJPG::HuffTable::Node tree[256];
 	fJPG::LazyTreePreIterator<15> itr(tree);
-	uint8_t codes[] = {0, 0, 2, 1, 3};
+	uint8_t codes[] = {0, 2, 1, 3};
 	uint8_t values[] = {1, 2, 3, 11, 4, 0};
 	uint8_t *value = values;
-	for(std::size_t f = 1; f <= 4; ++f) {
+	for(std::size_t f = 0; f < 4; ++f) {
 		for(std::size_t i = 0; i < codes[f]; ++i) {
-			// TODO fix:
-			while(itr.floor() != f + 1) { assert(++itr);}
+			while(itr.floor() != f+1) { assert(++itr);}
 			itr.set(*(value++));
 		}
 	}
@@ -44,5 +49,18 @@ int main(int argc, char *argv[])
 			assert(true);
 		}
 	}
+	{
+		fJPG::HuffTable table{};
+		std::cout << SAMPLE_DIR << '\n';
+		std::ifstream huff(std::string(SAMPLE_DIR) + "/huffTable.data", std::ios::binary);
+		huff >> table;
+		assert(table.decode(0b00) == 1);
+		assert(table.decode(0b10) == 2);
+		assert(table.decode(0b001) == 3);
+		assert(table.decode(0b0101) == 11);
+		assert(table.decode(0b1101) == 4);
+		assert(table.decode(0b0011) == 0);
+	}
+
 	return 0;
 }
