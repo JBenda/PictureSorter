@@ -2,6 +2,9 @@
 
 #include <istream>
 #include <type_traits>
+#ifdef DEBUG
+#include <cassert>
+#endif
 
 namespace fJPG {
 
@@ -12,6 +15,12 @@ namespace fJPG {
 		} else {
 			is.read(reinterpret_cast<char*>(&ref), sizeof(T));
 		}
+#ifdef DEBUG
+		assert(is.fail());
+#endif
+	}
+	void Skip(std::istream& is, std::size_t n) {
+		is.seekg(n, std::ios::cur);
 	}
 
 }

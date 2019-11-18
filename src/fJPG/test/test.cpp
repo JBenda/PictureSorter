@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include "HuffTable.hpp"
+#include "fJPG.hpp"
 
 #ifndef SAMPLE_DIR
 #define SAMPLE_DIR "."
@@ -60,7 +61,12 @@ int main(int argc, char *argv[])
 		assert(table.decode(0b0101) == 11);
 		assert(table.decode(0b1101) == 4);
 		assert(table.decode(0b0011) == 0);
+	} {
+		std::ifstream jpg(std::string(SAMPLE_DIR) + "/t1.jpg", std::ios::binary);
+		fJPG::Picture<fJPG::ColorEncoding::YCrCb8> pic = fJPG::Convert(jpg);
+		std::cout << "width: " << pic.GetSize().x << "\theight: " << pic.GetSize().y << '\n';
 	}
+
 
 	return 0;
 }
