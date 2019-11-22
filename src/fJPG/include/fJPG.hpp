@@ -29,11 +29,13 @@ namespace fJPG {
 		friend class Picture;
 		Channel(itr_t begin, itr_t end) : _begin(begin), _end(end) {}
 	public:
+		Channel() = default;
+		using iterator = itr_t;
 		const itr_t& begin() const { return _begin; }
 		const itr_t& end() const { return _end; }
 	private:
-		itr_t _begin;
-		itr_t _end;
+		itr_t _begin{};
+		itr_t _end{};
 	} ;				
 
 

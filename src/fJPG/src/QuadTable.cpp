@@ -6,13 +6,13 @@ namespace fJPG {
 		uint8_t info;
 		Read(is, info);
 		q._id = info & 0b1111;
-		uint8_t precission = info & 0bF0
+		uint8_t precission = info & 0xF0
 			? 2
 			: 1;
 		uint8_t value[] = {0, 0};
 		Read(is, value, precission);
 		Skip(is, precission * 63);
-		_dc = precission == 1
+		q._dc = precission == 1
 			? value[0]
 			: (static_cast<uint16_t>(value[0]) << 8)
 			& static_cast<uint16_t>(value[1]);

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include "HuffTable.hpp"
+#include "fJPG.hpp"
 
 #ifndef SAMPLE_DIR
 #define SAMPLE_DIR "."
@@ -51,7 +52,6 @@ int main(int argc, char *argv[])
 	}
 	{
 		fJPG::HuffTable table{};
-		std::cout << SAMPLE_DIR << '\n';
 		std::ifstream huff(std::string(SAMPLE_DIR) + "/huffTable.data", std::ios::binary);
 		huff >> table;
 		assert(table.decode(0b00) == 1);
@@ -60,6 +60,14 @@ int main(int argc, char *argv[])
 		assert(table.decode(0b0101) == 11);
 		assert(table.decode(0b1101) == 4);
 		assert(table.decode(0b0011) == 0);
+	}{
+		std::ifstream img(std::string(SAMPLE_DIR) + "/t1.jpeg", std::ios::binary);
+		try{
+			fJPG::Picture picture = fJPG::Convert(img);
+		} catch (const std::string& msg) {
+			std::cerr << "conversion failed with: " << msg << '\n';
+			assert(true);
+		}
 	}
 
 	return 0;
