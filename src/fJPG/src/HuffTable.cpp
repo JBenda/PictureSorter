@@ -8,23 +8,6 @@
 #endif
 
 namespace fJPG {
-	uint8_t HuffTable::decode(uint16_t data) {
-		Node n = tree[0]	;
-#ifdef DEBUG
-		uint8_t c = 0;
-#endif
-		do {
-			n = data & (0x01)
-				? tree[n.r]
-				: tree[n.l];
-			data >>= 1;
-#ifdef DEBUG
-			++c;
-			assert(c < 16);
-#endif
-		} while(n.l);
-		return n.r;
-	}
 
 	std::istream& operator >>(std::istream& is, HuffTable& h) {
 		uint8_t info;

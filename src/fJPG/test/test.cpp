@@ -52,7 +52,6 @@ int main(int argc, char *argv[])
 	}
 	{
 		fJPG::HuffTable table{};
-		std::cout << SAMPLE_DIR << '\n';
 		std::ifstream huff(std::string(SAMPLE_DIR) + "/huffTable.data", std::ios::binary);
 		huff >> table;
 		assert(table.decode(0b00) == 1);
@@ -61,10 +60,14 @@ int main(int argc, char *argv[])
 		assert(table.decode(0b0101) == 11);
 		assert(table.decode(0b1101) == 4);
 		assert(table.decode(0b0011) == 0);
-	} {
-		std::ifstream jpg(std::string(SAMPLE_DIR) + "/t1.jpg", std::ios::binary);
-		fJPG::Picture<fJPG::ColorEncoding::YCrCb8> pic = fJPG::Convert(jpg);
-		std::cout << "width: " << pic.GetSize().x << "\theight: " << pic.GetSize().y << '\n';
+	}{
+		std::ifstream img(std::string(SAMPLE_DIR) + "/t1.jpeg", std::ios::binary);
+		try{
+			fJPG::Picture picture = fJPG::Convert(img);
+		} catch (const std::string& msg) {
+			std::cerr << "conversion failed with: " << msg << '\n';
+			assert(true);
+		}
 	}
 
 
