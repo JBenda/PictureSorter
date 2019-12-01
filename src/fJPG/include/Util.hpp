@@ -4,23 +4,27 @@
 #include <type_traits>
 #ifdef DEBUG
 #include <cassert>
+#include <iostream>
 #endif
 
 namespace fJPG {
 
 	template<typename T>
-	void Read(std::istream& is, T& ref, std::size_t n = 1) {
-		if constexpr (std::is_pointer<T>::value) {
-			is.read(reinterpret_cast<char*>(ref), sizeof(std::remove_pointer<T>) * n);	
-		} else {
-			is.read(reinterpret_cast<char*>(&ref), sizeof(T));
-		}
+	void Read(std::istream& is, T& ref) {
+		is.read(reinterpret_cast<char*>(&ref), sizeof(T));
 #ifdef DEBUG
-		assert(is.fail());
+		assert(!is.fail());
 #endif
 	}
-	void Skip(std::istream& is, std::size_t n) {
-		is.seekg(n, std::ios::cur);
+	template<typename T>
+	void Read(std::istream& is, T* ptr, std::size_t n) {
+		is.read(reinterpret_cast<char*>(ptr), sizeof(*ptr)* n);
+#ifdef DEBUG
+		assert(!is.fail());
+#endif // DEBUG
+
 	}
+	uint16_t ReadLen(std::istream& is);
+	void Skip(std::istream& is, std::size_t n);
 
 }

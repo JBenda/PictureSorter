@@ -1,9 +1,7 @@
-#include "api.hpp"
 #include <cassert>
 #include <iostream>
 #include <fstream>
-#include "HuffTable.hpp"
-#include "fJPG.hpp"
+#include "HuffTable.hpp""
 
 #ifndef SAMPLE_DIR
 #define SAMPLE_DIR "."
@@ -18,9 +16,7 @@ bool operator!=(const fJPG::HuffTable::Node& n1, const fJPG::HuffTable::Node& n2
 	return n1.l != n2.l || n1.r != n2.r;
 }
 
-int main(int argc, char *argv[])
-{
-	assert(("yes", add(3, 5) == 8));
+int main(int argc, char *argv[]) {
 
 	fJPG::HuffTable::Node tree[256];
 	fJPG::LazyTreePreIterator<15> itr(tree);
@@ -53,23 +49,15 @@ int main(int argc, char *argv[])
 	{
 		fJPG::HuffTable table{};
 		std::ifstream huff(std::string(SAMPLE_DIR) + "/huffTable.data", std::ios::binary);
+		fJPG::HuffTable::ParseHeader(huff);
 		huff >> table;
-		assert(table.decode(0b00) == 1);
-		assert(table.decode(0b10) == 2);
-		assert(table.decode(0b001) == 3);
-		assert(table.decode(0b0101) == 11);
-		assert(table.decode(0b1101) == 4);
-		assert(table.decode(0b0011) == 0);
-	}{
-		std::ifstream img(std::string(SAMPLE_DIR) + "/t1.jpeg", std::ios::binary);
-		try{
-			fJPG::Picture picture = fJPG::Convert(img);
-		} catch (const std::string& msg) {
-			std::cerr << "conversion failed with: " << msg << '\n';
-			assert(true);
-		}
+		std::size_t count = 0;
+		assert(table.decode(0b00   << 14, count) == 1);
+		assert(table.decode(0b01   << 14, count) == 2);
+		assert(table.decode(0b100  << 13, count) == 3);
+		assert(table.decode(0b1010 << 12, count) == 11);
+		assert(table.decode(0b1011 << 12, count) == 4);
+		assert(table.decode(0b1100 << 12, count) == 0);
 	}
-
-
 	return 0;
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <iosfwd>
 #include <array>
 #include <vector>
@@ -10,6 +11,8 @@ namespace fJPG {
 
 	template<typename T>
 	struct Dim {
+		Dim(T vx, T vy) : x{ vx }, y{ vy }{}
+		Dim() = default;
 		T x{0};
 		T y{0};
 	} ;
@@ -28,6 +31,7 @@ namespace fJPG {
 		template<ColorEncoding>
 		friend class Picture;
 		Channel(itr_t begin, itr_t end) : _begin(begin), _end(end) {}
+
 	public:
 		Channel() = default;
 		using iterator = itr_t;
@@ -41,7 +45,7 @@ namespace fJPG {
 
 	template<ColorEncoding C>
 	class Picture {
-		void validateChannel(const std::size_t x) {
+		void validateChannel(const std::size_t x) const {
 			if ( x >= _channels) {
 				throw std::string("channel out of bound");
 			}
@@ -56,8 +60,8 @@ namespace fJPG {
 		}
 
 		Picture() = default;
-		Picture(const Picture&) = delete;
-		Picture& operator=(const Picture&) = delete;
+		Picture(const Picture&) = default;
+		Picture& operator=(const Picture&) = default;
 		Picture(Picture&&) = default;
 		Picture& operator=(Picture&&) = default;
 	protected:

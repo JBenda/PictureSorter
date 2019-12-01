@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cassert>
 #include <array>
+#include <bitset>
+#include <vector>
 
 namespace fJPG {
 	class HuffTable {
@@ -12,11 +14,14 @@ namespace fJPG {
 		 *	@brief if l == 0, r = value, and note is leaf. 
 		*/
 		struct Node {
-			Node(uint8_t lh, uint8_t rh)
+			using address_t = uint16_t;
+			Node(address_t lh, address_t rh)
 				: l{lh}, r{rh}{}
 			Node() : l{0}, r{0}{}
-			uint8_t l;
-			uint8_t r;
+			bool isLeave() const { return l == 0; }
+			uint8_t value() const { return static_cast<uint8_t>(r); }
+			address_t l;
+			address_t r;
 		};
 		
 		/**
@@ -31,25 +36,36 @@ namespace fJPG {
 #endif
 			do {
 				++itr;
-				n = data & (0x01)
+				n = data & (0x8000)
 					? tree[n.r]
 					: tree[n.l];
-				data >>= 1;
+				data <<= 1;
 #ifdef DEBUG
 				++c;
 				assert(c < 16);
 #endif
 			} while(n.l);
-			return n.r;
+			return static_cast<uint8_t>(n.r);
 		}
+		struct Header {
+			uint8_t id;
+			bool isAC;
+		};
+		static Header ParseHeader(std::istream& is);
 
-		friend std::istream& operator >>(std::istream& is, HuffTable& h);
+		friend std::ostream& operator<<(std::ostream& os, const HuffTable& h);
+		friend std::istream& operator>>(std::istream& is, HuffTable& h);
+		HuffTable() = default;
 	private:
-		Node tree[256]; ///< bin tree, tree[0] … root
+		std::vector<Node> tree; ///< bin tree, tree[0] … root
+#ifdef DEBUG
+		std::size_t d_numCodes{0};
+#endif
 	};
 
 	template<std::size_t DEPTH>
 	class LazyTreePreIterator {
+		using address_t = HuffTable::Node::address_t;
 		void push() {
 			_stack[++_floor] = _next; 
 		}
@@ -57,7 +73,7 @@ namespace fJPG {
 			_next = _stack[_floor--];
 		}
 		void up() {
-			uint8_t last;
+			address_t last;
 			do{
 				last = _next;
 				pop();
@@ -66,12 +82,16 @@ namespace fJPG {
 					return;
 				}
 			} while(_tree[_next].l != last);
+			_pos.set(_floor, true);
 			push();
 			_tree[_next].r = _length;
 			_next = _length;
 			++_length;
 		}
 	public:
+		std::size_t size() const {
+			return _length;
+		}
 		operator bool() {
 			return !_end;
 		}
@@ -90,6 +110,7 @@ namespace fJPG {
 			assert(!_end);
 #endif
 			if(_floor < DEPTH) {
+				_pos.set(_floor, false);
 				push();
 				_tree[_next].l = _length;
 				_next = _length;
@@ -102,11 +123,12 @@ namespace fJPG {
 		LazyTreePreIterator(HuffTable::Node*const& tree)
 			: _tree{tree}{}
 	private:
+		std::bitset<DEPTH> _pos{0};
 		bool _end{false};
-		uint8_t _next{0};
-		uint8_t _length{1};
+		address_t _next{0};
+		address_t _length{1};
 		uint8_t _floor{0};
-		std::array<uint8_t, DEPTH> _stack;
+		std::array<address_t, DEPTH+1> _stack{};
 		HuffTable::Node*const& _tree;
 	};
 }
