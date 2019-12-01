@@ -3,3 +3,4 @@
 **/compile_commands.json
 .vs/**
 **/CMakeSettings.json
+/src/fJPG/test/t1.pgm
