@@ -27,23 +27,34 @@ bool compare(const std::string& p1, const std::string& p2) {
 int main(int argc, char* argv[]) {
 	{
 		std::string base(SAMPLE_DIR);
-		std::ifstream img(base + "/t1.jpeg", std::ios::binary);
-		try {
-			fJPG::Picture picture = fJPG::Convert(img);
-			img.close();
-			decltype(picture) const& pic = picture;
-			std::ofstream out(base + "/t1.pgm", std::ios::binary);
-			out << "P5\n" << pic.GetSize().x << ' ' << pic.GetSize().y << "\n255\n";
-			for (auto c : pic.GetChannel(0)) {
-				out << c;
-			}
-			out.close();
-			assert(compare(base + "/t1.pgm", base + "/t1.pgm.res"));
+		std::array files = {
+			"/t2"
+		};
+		for (auto file : files) {
+			std::cout << "Process Image: " << (base + file + ".jpeg") << '\n';
+			std::ifstream img(base + file + ".jpeg", std::ios::binary);
+			assert(img);
+			std::cout << "\tfile found\n";
+			try {
+				fJPG::Picture picture = fJPG::Convert(img);
+				std::cout << "\tconversion finished.\n";
 
-		}
-		catch (const std::string & msg) {
-			std::cerr << "conversion failed with: " << msg << '\n';
-			assert(true);
+				decltype(picture) const& pic = picture;
+				std::ofstream out(base + file + ".pgm", std::ios::binary);
+				out << "P5\n" << pic.GetSize().x << ' ' << pic.GetSize().y << "\n255\n";
+				for (auto c : pic.GetChannel(0)) {
+					out << c;
+				}
+				out.close();
+				assert(compare(base + file + ".pgm", base + file + ".pgm.res"));
+				std::cout << "\tsuccess!\n";
+
+			}
+			catch (const std::string & msg) {
+				std::cerr << "conversion failed with: " << msg << '\n';
+				assert(true);
+			}
+			img.close();
 		}
 	}
 

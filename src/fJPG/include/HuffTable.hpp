@@ -29,20 +29,20 @@ namespace fJPG {
 		 *	@return decoded value
 		*/
 		template<typename T>
-		uint8_t decode(uint16_t data, T& itr) const {
+		uint8_t decode(const uint16_t data, T& itr) const {
+			uint16_t value = data;
 			Node n = tree[0]	;
 #ifdef DEBUG
 			uint8_t c = 0;
 #endif
 			do {
 				++itr;
-				n = data & (0x8000)
+				n = value & (0x8000)
 					? tree[n.r]
 					: tree[n.l];
-				data <<= 1;
+				value <<= 1;
 #ifdef DEBUG
-				++c;
-				assert(c < 16);
+				assert(c++ < 16);
 #endif
 			} while(n.l);
 			return static_cast<uint8_t>(n.r);
