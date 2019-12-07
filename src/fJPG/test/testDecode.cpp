@@ -1,9 +1,9 @@
-#include "api.hpp"
 #include <cassert>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
 #include <string_view>
+#include <array>
 #include "fJPG.hpp"
 
 #ifndef SAMPLE_DIR

@@ -3,6 +3,9 @@
 #include "HuffTable.hpp"
 #include "QuadTable.hpp"
 #include "Util.hpp"
+#include "BitItr.hpp"
+#include "DataCollection.hpp"
+#include "DuIterator.hpp"
 
 #include <istream>
 #include <variant>
@@ -23,51 +26,6 @@ namespace fJPG {
 		END = 0xD9,
 		SOI = 0xD8,
 		COM = 0xFE
-	};
-
-
-	template<ColorEncoding C>
-	class EditablePicture : public Picture<C> {
-	public:
-		EditablePicture( Dim<std::size_t> size, std::size_t channels )
-			: Picture<C>( size, channels ) {}
-
-		auto GetData( std::size_t x ) {
-			return Picture<C>::GetChannel( x );
-		}
-	};
-
-	template <Flags TYPE>
-	struct Block {
-		static constexpr uint8_t VALUE = static_cast<uint8_t>( TYPE );
-		std::streampos start{ 0 };
-	};
-
-
-	struct ChannelInfo {
-		uint8_t sampV{ 0 }, sampH{ 0 }, quadTable{ 0 }, huffAc{ 0 }, huffDc{ 0 };
-	};
-
-
-	struct JPGDecomposition {
-		JPGDecomposition( std::istream& inputStream ) : input{ inputStream } {}
-		static constexpr size_t Max_Channels = 3;
-		Dim<std::size_t> size;
-		Dim<uint8_t> mcuSize;
-		Dim<uint8_t> mcuSamp;
-		Dim<std::size_t> nDus;
-		std::size_t nChannel{ 0 };
-		ColorEncoding colorEncoding{ ColorEncoding::YCrCb8 };
-		std::array<ChannelInfo, Max_Channels> channelInfos;
-		std::array<QuadTable, Max_Channels> quadTables;
-		std::array<HuffTable, Max_Channels> huffTablesAc;
-		std::array<HuffTable, Max_Channels> huffTablesDc;
-		Block<Flags::DATA> data;
-		std::istream& input;
-		struct Progressive {
-			uint8_t Ss, Se, Ah, Al;
-		};
-		std::optional<Progressive> progressive;
 	};
 
 	JPGDecomposition Decompose( std::istream& );
@@ -93,206 +51,7 @@ namespace fJPG {
 		return picture;
 	}
 
-	class DuIterator {
-	public:
-		DuIterator( const JPGDecomposition& base, std::size_t channelId, Channel<std::vector<color_t>::iterator>& channel )
-			:
-			_samp{ base.channelInfos[channelId].sampH, base.channelInfos[channelId].sampV },
-			_mcuSamp{ base.mcuSamp },
-			_nDus{ base.nDus },
-			_channel{ channel },
-			_itr{ _channel.begin() }{
-#ifdef DEBUG
-			_id = channelId;
-			assert( _channel.end() - _channel.begin() == base.nDus.x * base.nDus.y );
-
-			uint8_t ratio;
-			assert( ratio = _mcuSamp.x / _samp.x, !( ratio == 0 ) && !( ratio& ( ratio - 1 ) ) );
-			assert( ratio = _mcuSamp.y / _samp.y, !( ratio == 0 ) && !( ratio& ( ratio - 1 ) ) );
-#endif // DEBUG
-
-		}
-
-		DuIterator() = default;
-
-		void incriment() {
-			++_local.x;
-			++_global.x;
-			if ( /*_global.x == _nDus.x || */ _local.x == _mcuSamp.x) {
-				++_local.y;
-				++_global.y;
-				if ( _global.x >= _nDus.x && _global.y == _nDus.y && _local.y == _mcuSamp.y) {
-					_local.y = 0;
-					++_itr;
-					_global.x = 0;
-				} else if ( _local.y == _mcuSamp.y ) {
-					_local.y = 0;
-					if ( _global.x >= _nDus.x ) { 
-						_global.x = 0; 
-						++_itr;
-					} else {
-						_global.y -= _mcuSamp.y;
-						_itr -= ( _mcuSamp.y - 1 ) * _nDus.x - 1;
-					}
-				} else {
-					_global.x -= _local.x;
-					_itr += _nDus.x - ( _local.x - 1 );
-				}
-				_local.x = 0;
-			} else {
-				++_itr;
-			}
-		}
-
-		void insert( int diff ) {
-			if ( _samp.x == 0 ) {
-				// assert(false);
-				return;
-			}
-
-			_diff += diff;
-#ifdef DEBUG
-			unsigned int count = 0;
-#endif
-			do {
-#ifdef DEBUG
-				++count;
-				assert( _itr != _channel.end() );
-				if ( _id == 0 ) {
-					// std::cout << ( _itr - _channel.begin() ) << '\n';
-				}
-				assert( *_itr == 0 );
-				assert( _diff / 8 + static_cast<int>( ( std::numeric_limits<color_t>::max() + 1 ) / 2 ) < 256 
-				&& _diff / 8 + static_cast<int>( ( std::numeric_limits<color_t>::max() + 1 ) / 2 ) >= 0);
-#endif // DEBUG
-				* _itr = _diff / 8 + static_cast<int>( (std::numeric_limits<color_t>::max() + 1) / 2 );
-				std::size_t diff = ( _itr - _channel.begin() );
-				// std::cout << "insert: " << ( ( diff % _nDus.x ) * 8 ) << '|' << ( diff / _nDus.x * 8 )  << '\n';
-				incriment();
-#ifdef DEBUG
-				if ( _global.y == 0 && _global.x == 0 ) {
-					assert(_itr == _channel.begin() || _itr == _channel.end());
-				}
-#endif // DEBUG
-
-			} while ( _itr != _channel.end() && ( _local.x >= _samp.x || _local.y >= _samp.y ) );
-#ifdef DEBUG
-			// std::cout << "executed: " << count << "\n";
-#endif // DEBUG
-
-		}
-	private:
-		Dim<uint8_t> _samp;
-		Dim<uint8_t> _mcuSamp;
-		Dim<std::size_t> _nDus;
-		Channel<std::vector<color_t>::iterator> _channel;
-		std::vector<color_t>::iterator _itr;
-		Dim<uint8_t> _local{ 0,0 };
-		Dim<std::size_t> _global{ 0,0 };
-		int _diff{ 0 };
-#ifdef DEBUG
-		std::size_t _id{255};
-#endif // DEBUG
-
-	};
-
-	class BitItr {
-		void sync( uint8_t flag ) {
-#ifdef DEBUG
-			// assert((flag & 0xF0) == 0xD0); // only for sequential
-			// assert((flag & 0x0F) == 0 || (flag & 0x0F) == (_block + 1));
-#endif
-			_block = flag & 0x0F;
-		}
-		void nextByte() {
-			_offset -= 8;
-			uint8_t byte;
-			_window[0] = _window[1];
-			_window[1] = _window[2];
-			_fillByte[0] = _fillByte[1];
-			_fillByte[1] = false;
-			if ( _block > 9 ) return;
-top:
-			Read( _is, byte );
-			if ( byte == 0xFF ) {
-				uint8_t flag;
-				Read( _is, flag );
-				if ( flag == 0x00 ) {
-					_window[2] = 0xFF;
-				} else {
-					_fillByte[1] = true;
-					if ( flag == static_cast<uint8_t>( Flags::END ) ) {
-						_block = flag;
-					} else {
-						sync( flag );
-						goto top;
-					}
-				}
-			} else {
-				_window[2] = byte;
-			}
-		}
-		uint16_t peek16Bit() {
-			return  ( _window[0] << ( 8 + _offset ) )
-				+ ( _window[1] << _offset )
-				+ ( _window[2] >> ( 8 - _offset ) );
-		}
-	public:
-		uint8_t	GetResetCount() { return _block; }
-		BitItr& operator++() {
-			++_offset;
-			if ( _offset > 7 ) nextByte();
-			return *this;
-		}
-
-		BitItr& operator+=( std::size_t x ) {
-			for ( std::size_t i = 0; i < x; ++i ) { this->operator++(); }
-			return *this;
-		}
-
-		uint8_t nextHuff( const HuffTable& huff ) {
-			uint16_t data;
-			if ( _fillByte[0] && ( _window[0] ^ ( 0xFF >> _offset ) ) ) {
-#ifdef DEBUG
-				assert( _offset < 8 );
-#endif // DEBUG
-
-				_offset = 8;
-				nextByte();
-			}
-			std::array<uint16_t, 3> between;
-			data = peek16Bit();
-			std::array<uint8_t, 3> snap = _window;
-			std::size_t off = _offset;
-			return huff.decode( data, *this );
-		}
-		template<typename T>
-		T read( std::size_t len ) {
-			if ( len == 0 || len > 32 ) return 0;
-			if ( len > 16 ) {
-				throw "to long!";
-			}
-			T res = peek16Bit();
-			*this += len;
-			res = ( res >> ( 16 - len ) )& ( 0xFFFF >> ( 16 - len ) );
-			if ( res >> ( len - 1 ) == 0 ) { // signed
-				res -= ( 0b1 << len ) - 1;
-			}
-			// std::cout << "read len: " << len << " val: " << res << '\n';
-			return res;
-		}
-		BitItr( std::istream& is, const Block<Flags::DATA>& block )
-			: _is{ is } {
-			is.seekg( block.start );
-			Read( is, _window );
-		}
-	private:
-		std::array<uint8_t, 3> _window{ 0,0,0 };
-		std::array<bool, 2> _fillByte{ false, false };
-		uint8_t _offset{ 0 };
-		uint8_t _block{ 0 };
-		std::istream& _is;
-	};
+	
 	template<Flags F>
 	void Parse( JPGDecomposition& /*data*/ ) { throw "not implimented yet"; }
 
@@ -530,7 +289,7 @@ top:
 			Decode( flag, result );
 		} while ( flag != Flags::DATA );
 
-		result.data.start = input.tellg();
+		result.startData = input.tellg();
 		result.mcuSamp = Dim<uint8_t>( 0, 0 );
 		for ( unsigned int i = 0; i < result.nChannel; ++i ) {
 			if ( result.mcuSamp.x < result.channelInfos[i].sampH ) {
@@ -564,14 +323,14 @@ top:
 	void DecodeDu( DuIterator& channel, BitItr& itr, const HuffTable& huffDc, const HuffTable& huffAc, const QuadTable& quad, const std::optional<JPGDecomposition::Progressive>& progressive ) {
 		if ( !progressive ) {
 			uint8_t len = itr.nextHuff( huffDc );
-			channel.insert( itr.read<int>( len ) * quad.dc() );
+			channel.insert( itr.read( len ) * quad.dc() );
 
 			skipAc( itr, huffAc );
 		} else {
 			const JPGDecomposition::Progressive& prog = progressive.value();
 			if ( prog.Ss != 0 ) { throw "only supports DC encoding"; }
 			uint8_t len = itr.nextHuff( huffDc );
-			channel.insert( ( itr.read<int>( len ) << prog.Al ) * quad.dc() ); // FIXME: add support to ignore wrong SOS's
+			channel.insert( ( itr.read( len ) << prog.Al ) * quad.dc() ); // FIXME: add support to ignore wrong SOS's
 			skipAc( itr, huffAc, prog.Se, prog.Ss +  1 );
 		}
 	}
@@ -615,7 +374,7 @@ top:
 			data.progressive );
 	}
 	void Decode( EditablePicture<ColorEncoding::YCrCb8>& picture, const JPGDecomposition& data ) {
-		data.input.seekg( data.data.start );
+		data.input.seekg( data.startData );
 		Dim<std::size_t> pos;
 		std::variant<std::array<DuIterator, 3>, std::array<DuIterator, 1>> channels{};
 		if ( data.colorEncoding == ColorEncoding::YCrCb8 ) {
@@ -625,7 +384,7 @@ top:
 		} else {
 			std::get<std::array<DuIterator, 1>>( channels ).at( 0 ) = DuIterator( data, 0, picture.GetData( 0 ) );
 		}
-		BitItr dataItr( data.input, data.data );
+		BitItr dataItr( data.input, data.startData );
 		for ( pos.y = 0; pos.y < data.size.y; pos.y += data.mcuSize.y) {
 			for ( pos.x = 0; pos.x < data.size.x;) {
 				if ( data.colorEncoding == ColorEncoding::YCrCb8 ) {
@@ -633,15 +392,6 @@ top:
 				} else {
 					DecodeMCU( pos, data, dataItr, std::get<std::array<DuIterator, 1>>( channels ) );
 				}
-			}
-		}
-		std::cout << "start add reading\n";
-		std::array<DuIterator, 3> dummys = {DuIterator(), DuIterator(), DuIterator()};
-		for ( unsigned int i = 0; i < 400; ++i ) {
-			DecodeMCU( pos, data, dataItr, dummys );
-			if ( dataItr.GetResetCount() > 9 ) {
-				std::cout << "additionals: " << i << '\n';
-				break;
 			}
 		}
 		std::cout << "end" << data.input.tellg() << '\n';

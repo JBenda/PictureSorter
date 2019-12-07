@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include <iosfwd>
 #include <array>
 #include <vector>
@@ -68,10 +67,10 @@ namespace fJPG {
 		Picture(Dim<std::size_t> size, std::size_t channels)
 			: _size{size}, _channels{channels}, _nPx{size.x * size.y}, _data(_nPx * _channels){}
 
-		Channel<std::vector<color_t>::iterator> GetChannel(std::size_t x)	{
+		Channel<std::vector<color_t>::iterator> GetRawChannel(std::size_t x) {
 			validateChannel(x)	;
 
-			return Channel(
+			return Channel<std::vector<color_t>::iterator>(
 						_data.begin() + _nPx * x,
 						_data.begin() + _nPx * ( x + 1)
 					);
