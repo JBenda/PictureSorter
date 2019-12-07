@@ -20,14 +20,18 @@ namespace fJPG {
 		DuIterator() = default;
 
 		void insert( int diff );
+
+		double mean() const;
 	private:
-		Dim<uint8_t> _samp;
-		Dim<uint8_t> _mcuSamp;
-		Dim<std::size_t> _nDus;
+		const Dim<uint8_t> _samp;
+		const Dim<uint8_t> _mcuSamp;
+		const Dim<std::size_t> _nDus;
 		Channel<std::vector<color_t>::iterator> _channel;
 		std::vector<color_t>::iterator _itr;
 		Dim<uint8_t> _local{ 0,0 };
 		Dim<std::size_t> _global{ 0,0 };
+		std::size_t _sum{0};
+		double _mean{-1};
 		int _diff{ 0 };
 #ifdef DEBUG
 		std::size_t _id{ 255 };

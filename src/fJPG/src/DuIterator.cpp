@@ -68,13 +68,24 @@ namespace fJPG {
 					&& _diff / 8 + static_cast<int>( ( std::numeric_limits<color_t>::max() + 1 ) / 2 ) >= 0 );
 #endif // DEBUG
 			* _itr = _diff / 8 + static_cast<int>( ( std::numeric_limits<color_t>::max() + 1 ) / 2 );
+			_sum += *_itr;
 			incriment();
 #ifdef DEBUG
 			if ( _global.y == 0 && _global.x == 0 ) {
 				// assert( _itr == _channel.begin() || _itr == _channel.end() );
 			}
 #endif // DEBUG
+			if ( _itr == _channel.end() ) {
+				_mean = static_cast<double>( _sum ) / static_cast<double>( _nDus.x * _nDus.y );
+				return;
+			}
+		} while ( _local.x >= _samp.x || _local.y >= _samp.y );
+	}
 
-		} while ( _itr != _channel.end() && ( _local.x >= _samp.x || _local.y >= _samp.y ) );
+	double DuIterator::mean() const {
+#ifdef DEBUG
+		assert( _mean > 0 );
+#endif // DEBUG
+		return _mean;
 	}
 }

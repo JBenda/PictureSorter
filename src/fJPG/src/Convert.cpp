@@ -14,6 +14,7 @@
 #include <optional>
 
 namespace fJPG {
+	using size_t = unsigned int;
 
 	enum struct Flags : uint8_t {
 		DATA = 0xDA,
@@ -304,7 +305,7 @@ namespace fJPG {
 	}
 
 
-	void skipAc( BitItr& itr, const HuffTable& acTable, std::size_t end = 63, std::size_t start = 1 ) {
+	void skipAc( BitItr& itr, const HuffTable& acTable, size_t end = 63, size_t start = 1 ) {
 		for ( std::size_t i = start; i <= end; ++i ) {
 			uint8_t byte = itr.nextHuff( acTable );
 			if ( byte == 0 ) {
@@ -363,21 +364,26 @@ namespace fJPG {
 	void Decode( EditablePicture<ColorEncoding::YCrCb8>& picture, const JPGDecomposition& data ) {
 		data.input.seekg( data.startData );
 		Dim<std::size_t> pos;
-		std::variant<std::array<DuIterator, 3>, std::array<DuIterator, 1>> channels{};
+		using ChannelVar = std::unique_ptr<std::variant<std::array<DuIterator, 3>, std::array<DuIterator, 1>>>;
+		ChannelVar channels{nullptr};
 		if ( data.colorEncoding == ColorEncoding::YCrCb8 ) {
-			for ( int i = 0; i < 3; ++i ) {
-				std::get<std::array<DuIterator, 3>>( channels ).at( i ) = DuIterator( data, i, picture.GetData( i ) );
-			}
+			channels = std::make_unique<ChannelVar::element_type>( std::array<DuIterator, 3> {
+				DuIterator( data, 0, picture.GetData( 0 ) ),
+				DuIterator( data, 1, picture.GetData( 1 ) ),
+				DuIterator( data, 2, picture.GetData( 2 ) ) }
+			);
 		} else {
-			std::get<std::array<DuIterator, 1>>( channels ).at( 0 ) = DuIterator( data, 0, picture.GetData( 0 ) );
+			channels = std::make_unique<ChannelVar::element_type>( std::array<DuIterator, 1> {
+				DuIterator( data, 0, picture.GetData( 0 ) )
+			});
 		}
 		BitItr dataItr( data.input, data.startData );
 		for ( pos.y = 0; pos.y < data.size.y; pos.y += data.mcuSize.y ) {
 			for ( pos.x = 0; pos.x < data.size.x; pos.x += data.mcuSize.x ) {
 				if ( data.colorEncoding == ColorEncoding::YCrCb8 ) {
-					DecodeMCU(data, dataItr, std::get<std::array<DuIterator, 3>>( channels ) );
+					DecodeMCU(data, dataItr, std::get<std::array<DuIterator, 3>>( *channels ) );
 				} else {
-					DecodeMCU(data, dataItr, std::get<std::array<DuIterator, 1>>( channels ) );
+					DecodeMCU(data, dataItr, std::get<std::array<DuIterator, 1>>( *channels ) );
 				}
 			}
 		}

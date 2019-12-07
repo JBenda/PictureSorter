@@ -11,5 +11,7 @@ namespace fJPG {
 	void Skip(std::istream& is, std::size_t n) {
 		is.seekg(n, std::ios::cur);
 	}
-
+	void Skip( std::istream& is, unsigned int n ) {
+		is.seekg( n, std::ios::cur );
+	}
 }
