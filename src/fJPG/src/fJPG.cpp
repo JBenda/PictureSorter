@@ -76,10 +76,13 @@ namespace fJPG {
 	Picture<ColorEncoding::YCrCb8> Convert( std::istream& input ) {
 		JPGDecomposition data = Decompose( input );
 		std::size_t w = data.size.x / 8;
-		if ( w * 8 != data.size.x ) w += data.mcuSamp.x;
+		if ( w * 8 != data.size.x ) ++w;
+		if ( w % data.mcuSamp.x != 0 )  w += data.mcuSamp.x - ( w % data.mcuSamp.x );
 
 		std::size_t h = data.size.y / 8;
-		if ( h * 8 != data.size.y ) h += data.mcuSamp.y;
+		if ( h * 8 != data.size.y ) ++h;
+		if ( h % data.mcuSamp.y != 0 ) h += data.mcuSamp.y - ( h % data.mcuSamp.y );
+
 
 		data.nDus = { w, h };
 		EditablePicture<ColorEncoding::YCrCb8>
@@ -156,9 +159,11 @@ namespace fJPG {
 				++count;
 				assert( _itr != _channel.end() );
 				if ( _id == 0 ) {
-					// std::cout << ( _itr - _channel.begin() ) << '\n';
+					std::cout << ( _itr - _channel.begin() ) << '\n';
 				}
 				assert( *_itr == 0 );
+				assert( _diff / 8 + static_cast<int>( ( std::numeric_limits<color_t>::max() + 1 ) / 2 ) < 256 
+				&& _diff / 8 + static_cast<int>( ( std::numeric_limits<color_t>::max() + 1 ) / 2 ) >= 0);
 #endif // DEBUG
 				* _itr = _diff / 8 + static_cast<int>( (std::numeric_limits<color_t>::max() + 1) / 2 );
 				std::size_t diff = ( _itr - _channel.begin() );
@@ -566,9 +571,8 @@ top:
 			const JPGDecomposition::Progressive& prog = progressive.value();
 			if ( prog.Ss != 0 ) { throw "only supports DC encoding"; }
 			uint8_t len = itr.nextHuff( huffDc );
-			channel.insert( ( itr.read<int>( len - 1 ) << 1 ) * quad.dc() );
-
-			skipAc( itr, huffAc, prog.Se, prog.Ss + 1 );
+			channel.insert( ( itr.read<int>( len ) << prog.Al ) * quad.dc() ); // FIXME: add support to ignore wrong SOS's
+			skipAc( itr, huffAc, prog.Se, prog.Ss +  1 );
 		}
 	}
 
