@@ -1,7 +1,9 @@
-
-
 #include <cassert>
 #include <vector>
+
+#ifdef DEBUG
+#include <iostream>
+#endif // DEBUG
 
 
 #include "DataCollection.hpp"
@@ -29,32 +31,26 @@ namespace fJPG {
 
 
 	void DuIterator::incriment() {
+		
 		++_local.x;
-		++_global.x;
-		if ( /*_global.x == _nDus.x || */ _local.x == _mcuSamp.x ) {
+		++_itr;
+
+		if ( _local.x == _mcuSamp.x ) {
 			++_local.y;
-			++_global.y;
-			if ( _global.x >= _nDus.x && _global.y == _nDus.y && _local.y == _mcuSamp.y ) {
+			_local.x = 0;
+			if ( _local.y == _mcuSamp.y ) {
 				_local.y = 0;
-				++_itr;
-				_global.x = 0;
-			} else if ( _local.y == _mcuSamp.y ) {
-				_local.y = 0;
+				_global.x += _mcuSamp.x;
 				if ( _global.x >= _nDus.x ) {
 					_global.x = 0;
-					++_itr;
+					_global.y += _mcuSamp.y;
 				} else {
-					_global.y -= _mcuSamp.y;
-					_itr -= ( _mcuSamp.y - 1 ) * _nDus.x - 1;
+					_itr -= ( _mcuSamp.y - 1 ) * _nDus.x;
 				}
 			} else {
-				_global.x -= _local.x;
-				_itr += _nDus.x - ( _local.x - 1 );
+				_itr += _nDus.x - _mcuSamp.x;
 			}
-			_local.x = 0;
-		} else {
-			++_itr;
-		}
+		} 
 	}
 
 	void DuIterator::insert( int diff ) {
@@ -75,7 +71,7 @@ namespace fJPG {
 			incriment();
 #ifdef DEBUG
 			if ( _global.y == 0 && _global.x == 0 ) {
-				assert( _itr == _channel.begin() || _itr == _channel.end() );
+				// assert( _itr == _channel.begin() || _itr == _channel.end() );
 			}
 #endif // DEBUG
 

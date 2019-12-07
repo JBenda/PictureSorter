@@ -31,10 +31,10 @@ int main(int argc, char* argv[]) {
 		std::string base(SAMPLE_DIR);
 		std::array files = {
 			"/t1",
-			"/t2",
-			"/t3",
 			"/t4",
-			"/t5"
+			"/t5",
+			"/t2",
+			"/t3"
 
 		};
 		for (auto file : files) {
