@@ -159,7 +159,7 @@ namespace fJPG {
 				++count;
 				assert( _itr != _channel.end() );
 				if ( _id == 0 ) {
-					std::cout << ( _itr - _channel.begin() ) << '\n';
+					// std::cout << ( _itr - _channel.begin() ) << '\n';
 				}
 				assert( *_itr == 0 );
 				assert( _diff / 8 + static_cast<int>( ( std::numeric_limits<color_t>::max() + 1 ) / 2 ) < 256 

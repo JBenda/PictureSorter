@@ -2,13 +2,15 @@
 #include <cassert>
 #include <iostream>
 #include <fstream>
+#include <filesystem>
+#include <string_view>
 #include "fJPG.hpp"
 
 #ifndef SAMPLE_DIR
 #define SAMPLE_DIR "."
 #endif // !SAMPLE_DIR
 
-bool compare(const std::string& p1, const std::string& p2) {
+bool compare(const std::filesystem::path& p1, const std::filesystem::path& p2) {
 	std::ifstream
 		f1(p1, std::ios::binary | std::ios::ate),
 		f2(p2, std::ios::binary | std::ios::ate);
@@ -36,8 +38,9 @@ int main(int argc, char* argv[]) {
 
 		};
 		for (auto file : files) {
+			std::filesystem::path pImg = base + file + ".jpeg";
 			std::cout << "Process Image: " << (base + file + ".jpeg") << '\n';
-			std::ifstream img(base + file + ".jpeg", std::ios::binary);
+			std::ifstream img(pImg, std::ios::binary);
 			assert(img);
 			std::cout << "\tfile found\n";
 			try {
@@ -45,13 +48,14 @@ int main(int argc, char* argv[]) {
 				std::cout << "\tconversion finished.\n";
 
 				decltype(picture) const& pic = picture;
-				std::ofstream out(base + file + ".pgm", std::ios::binary);
+				std::ofstream out(pImg.replace_extension(".pgm"), std::ios::binary);
 				out << "P5\n" << pic.GetSize().x << ' ' << pic.GetSize().y << "\n255\n";
 				for (auto c : pic.GetChannel(0)) {
 					out << c;
 				}
 				out.close();
-				assert(compare(base + file + ".pgm", base + file + ".pgm.res"));
+				assert(compare(pImg, pImg.string() + ".res"));
+				std::filesystem::remove( pImg );
 				std::cout << "\tsuccess!\n";
 
 			}
