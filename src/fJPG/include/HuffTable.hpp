@@ -37,6 +37,16 @@ namespace fJPG {
 #endif
 			do {
 				++itr;
+				if (n.r == tree.size() - 1) {
+					if ( value & 0x8000 ) {
+						std::cout << "leng: " << (int)c << "\n\t";
+						std::cout << (int) ( tree[n.l].r ) << "|" << (int) ( tree[n.r].r ) << "\n";
+						if ( c == 15 ) {
+							std::cout << "\tsearch: " << std::bitset<16>( data ) << '\n';
+							assert( data != 0xFFFF );
+						}
+					}
+				}
 				n = value & (0x8000)
 					? tree[n.r]
 					: tree[n.l];

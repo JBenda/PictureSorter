@@ -28,7 +28,7 @@ int main(int argc, char* argv[]) {
 	{
 		std::string base(SAMPLE_DIR);
 		std::array files = {
-			"/t2"
+			"/t3"
 		};
 		for (auto file : files) {
 			std::cout << "Process Image: " << (base + file + ".jpeg") << '\n';
