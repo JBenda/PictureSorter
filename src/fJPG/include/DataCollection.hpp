@@ -17,6 +17,17 @@ namespace fJPG {
 		auto GetData( std::size_t x ) {
 			return GetRawChannel( x );
 		}
+		void setMean( float mean, std::size_t ch ) { 
+			_mean[ch] = mean;
+			double sum = 0;
+			for ( color_t c : GetChannel( ch ) ) {
+				double diff = mean - static_cast<double>( c );
+				sum += diff * diff;
+			}
+			const auto& size = GetSize();
+			sum /= static_cast<double>(  size.x * size.y - 1 );
+			this->_varianze[ch] = static_cast<typename decltype(_varianze)::value_type>( sum );
+		}
 	};
 
 

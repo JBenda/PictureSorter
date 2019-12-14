@@ -381,12 +381,23 @@ namespace fJPG {
 		for ( pos.y = 0; pos.y < data.size.y; pos.y += data.mcuSize.y ) {
 			for ( pos.x = 0; pos.x < data.size.x; pos.x += data.mcuSize.x ) {
 				if ( data.colorEncoding == ColorEncoding::YCrCb8 ) {
-					DecodeMCU(data, dataItr, std::get<std::array<DuIterator, 3>>( *channels ) );
+					DecodeMCU( data, dataItr, std::get<std::array<DuIterator, 3>>( *channels ) );
 				} else {
-					DecodeMCU(data, dataItr, std::get<std::array<DuIterator, 1>>( *channels ) );
+					DecodeMCU( data, dataItr, std::get<std::array<DuIterator, 1>>( *channels ) );
 				}
 			}
 		}
+
+		if ( data.colorEncoding == ColorEncoding::YCrCb8 ) {
+			auto& duItrs = std::get<std::array<DuIterator, 3>>( *channels );
+			for ( unsigned int i = 0; i < 3; ++i ) {
+				picture.setMean( duItrs[i].mean(), i );
+			}
+		} else {
+			picture.setMean( std::get<std::array<DuIterator, 1>>( *channels )[0].mean(), 0 );
+		}
+
+		
 		std::cout << "end" << data.input.tellg() << '\n';
 		if ( !data.progressive ) {
 			assert(static_cast<Flags>(dataItr.GetResetCount()) == Flags::END);

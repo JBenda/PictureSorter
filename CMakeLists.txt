@@ -49,13 +49,13 @@ set_target_properties( api PROPERTIES
 
 
 if (NOT BUILD_SUB)
-	target_include_directories(api PUBLIC ${fJPG_INCLUDE_DIRS})
+	target_include_directories(api PUBLIC ${fJPG_INCLUDE_DIRS} )
 	target_link_libraries(api ${fJPG_LIBRARIES})
 else()
 	target_link_libraries(api fJPG)
 endif()
 
-target_include_directories(api PRIVATE ${OpenCL_INCLUDE_DIRS})
+target_include_directories(api PRIVATE ${OpenCL_INCLUDE_DIRS} "include/")
 target_link_libraries(api ${OpenCL_LIBRARIES})
 if(CMAKE_COMPILER_IS_GNUCC)
 	target_link_libraries(api std++fs)
