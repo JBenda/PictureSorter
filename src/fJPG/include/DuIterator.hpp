@@ -15,7 +15,7 @@ namespace fJPG {
 		void incriment();
 
 	public:
-		DuIterator( const JPGDecomposition& base, std::size_t channelId, Channel<std::vector<color_t>::iterator>& channel );
+		DuIterator( const JPGDecomposition& base, std::size_t channelId, Channel<std::vector<color_t>::iterator> channel );
 
 		DuIterator() = default;
 
@@ -23,9 +23,9 @@ namespace fJPG {
 
 		double mean() const;
 	private:
-		const Dim<uint8_t> _samp;
-		const Dim<uint8_t> _mcuSamp;
-		const Dim<std::size_t> _nDus;
+		const Dim<uint8_t> _samp{0,0};
+		const Dim<uint8_t> _mcuSamp{0,0};
+		const Dim<std::size_t> _nDus{0,0};
 		Channel<std::vector<color_t>::iterator> _channel;
 		std::vector<color_t>::iterator _itr;
 		Dim<uint8_t> _local{ 0,0 };

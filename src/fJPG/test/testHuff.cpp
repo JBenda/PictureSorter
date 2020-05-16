@@ -1,7 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include <fstream>
-#include "HuffTable.hpp""
+#include "HuffTable.hpp"
 
 #ifndef SAMPLE_DIR
 #define SAMPLE_DIR "."

@@ -8,8 +8,7 @@ set (CMAKE_EXPORT_COMPILE_COMMANDS=YES)
 # add_compile_options( /std:c++17 )
 
 file(GLOB SOURCE_FILES
-	"src/*.cpp"
-	"src/*.cl"
+	"src/main.cpp"
 )
 file(GLOB PUBLIC_HEADER_FILES
 	"include/*.hpp"
@@ -25,10 +24,14 @@ set (BUILD_SUB YES CACHE BOOL "build submodules or just link them")
 
 if (BUILD_SUB)
 	add_subdirectory(src/fJPG fJPG )
+	add_subdirectory(src/Sim/ Sim )
 else()
 	set(fJPG_DIR . CACHE PATH "path to fJPG package")
 	find_package(fJPG REQUIRED)
+	set(Sim_DIR . CACHE PATH "path to Sim package")
+	find_package(fJPG REQUIRED)
 endif()
+
 
 
 # find_package( OpenCL REQUIRED )
@@ -51,8 +54,11 @@ set_target_properties( api PROPERTIES
 if (NOT BUILD_SUB)
 	target_include_directories(api PUBLIC ${fJPG_INCLUDE_DIRS} )
 	target_link_libraries(api ${fJPG_LIBRARIES})
+	target_include_directories(api PUBLIC ${Sim_INCLUDE_DIRS} )
+	target_link_libraries(api ${Sim_LIBRARIES})
 else()
 	target_link_libraries(api fJPG)
+	target_link_libraries(api Sim)
 endif()
 
 target_include_directories(api PRIVATE ${OpenCL_INCLUDE_DIRS} "include/")

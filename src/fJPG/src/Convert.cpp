@@ -7,11 +7,12 @@
 #include "DataCollection.hpp"
 #include "DuIterator.hpp"
 
-#include <istream>
-#include <variant>
 #include <array>
+#include <istream>
+#include <memory>
 #include <numeric>
 #include <optional>
+#include <variant>
 
 namespace fJPG {
 	using size_t = unsigned int;

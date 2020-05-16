@@ -1,0 +1,16 @@
+set(Sim_INCLUDE_DIRS @CMAKE_INSTALL_PREFIX@/@INSTALL_INCLUDEDIR@)
+set(Sim_LIBRARIES @CMAKE_INSTALL_PREFIX@/@INSTALL_LIBDIR@/libfSim.@LIB_SUFFIX@)
+
+
+# prefix=@CMAKE_INSTALL_PREFIX@
+# exec_prefix=@CMAKE_INSTALL_PREFIX@
+# libdir=${exec_prefix}/@INSTALL_LIBDIR@
+# includedir=${prefix}/@INSTALL_INCLUDEDIR@
+# 
+# Name: @PROJECT_NAME@
+# Description: @PROJECT_DESCRIPTION@
+# Version: @PROJECT_VERSION@
+# 
+# Requires:
+# Libs: -L${libdir} -lmylib
+# Cflags: -I${includedir}

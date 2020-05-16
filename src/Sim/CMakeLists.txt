@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.12)
-project (fJPG LANGUAGES CXX VERSION 0.0 DESCRIPTION "fast jpg converter (lose of data)")
+project (Sim LANGUAGES CXX VERSION 0.0 DESCRIPTION "Calculate simularity between images")
 
 if(NOT CMAKE_CXX_STANDARD)
 	set (CMAKE_CXX_STANDARD 17)
@@ -22,42 +22,39 @@ file(GLOB SOURCE_FILES
 )
 
 file(GLOB PUBLIC_HEADER_FILES
-	"include/fJPG.hpp"
+	"include/*.hpp"
 )
 
 if(LIB_TYPE STREQUAL "STATIC")
 	set(LIB_SUFFIX "a")
-	add_library(fJPG STATIC ${SOURCE_FILES})
+	add_library(Sim STATIC ${SOURCE_FILES})
 elseif(LIB_TYPE STREQUAL "SHARED")
 	set(LIB_SUFFIX "so")
-	add_library(fJPG SHARED ${SOURCE_FILES})
+	add_library(Sim SHARED ${SOURCE_FILES})
 else()
 	message(FATAL_ERROR "invalid library type '${LIB_TYPE}', only STATIC and SHARED supported")
 endif()
-target_include_directories(fJPG PUBLIC include)
+target_include_directories(Sim PUBLIC include)
 
-target_compile_definitions(fJPG PRIVATE DEBUG=ON)
-set_target_properties(fJPG PROPERTIES VERSION ${PROJECT_VERSION})
+target_compile_definitions(Sim PRIVATE DEBUG=ON)
+set_target_properties(Sim PROPERTIES VERSION ${PROJECT_VERSION})
 message("${PUBLIC_HEADER_FILES}")
-set_target_properties(fJPG PROPERTIES PUBLIC_HEADER ${PUBLIC_HEADER_FILES} )
+set_target_properties(Sim PROPERTIES PUBLIC_HEADER "${PUBLIC_HEADER_FILES}" )
 
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL GNU) 
-	target_link_libraries(fJPG stdc++fs)
+	target_link_libraries(Sim stdc++fs)
 endif()
 
-configure_file(fJPG.pc.in fJPGConfig.cmake @ONLY)
-install(TARGETS fJPG
+configure_file(Sim.pc.in SimConfig.cmake @ONLY)
+install(TARGETS Sim 
 	LIBRARY DESTINATION ${INSTALL_LIBDIR}
 	ARCHIVE DESTINATION ${INSTALL_LIBDIR}
 	PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}	
 )
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/fJPGConfig.cmake DESTINATION ${PACKAGE_DIR})
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/SimConfig.cmake DESTINATION ${PACKAGE_DIR})
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TEST OR ALL_TEST)
 	add_subdirectory (test)
 	enable_testing()
-	add_test ( NAME HuffTests COMMAND TestHuff)
-	add_test ( NAME DecodeTest COMMAND TestDecode)
-	# add_test ( NAME FrequenzTest COMMAND TestFreq )
 endif()

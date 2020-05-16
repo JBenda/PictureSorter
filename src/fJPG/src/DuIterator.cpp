@@ -11,7 +11,7 @@
 
 
 namespace fJPG {
-	DuIterator::DuIterator( const JPGDecomposition& base, std::size_t channelId, Channel<std::vector<color_t>::iterator>& channel )
+	DuIterator::DuIterator( const JPGDecomposition& base, std::size_t channelId, Channel<std::vector<color_t>::iterator> channel )
 		:
 		_samp{ base.channelInfos[channelId].sampH, base.channelInfos[channelId].sampV },
 		_mcuSamp{ base.mcuSamp },
