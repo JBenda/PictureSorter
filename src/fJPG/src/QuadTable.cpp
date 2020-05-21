@@ -17,7 +17,7 @@ namespace fJPG {
 		} else {
 			std::array<uint8_t, 2> value;
 			Read(is, value);
-			q._dc = (value[0] << 8) & value[1];
+			q._dc = (value[0] << 8) | value[1];
 		}
 		Skip(is, static_cast<std::size_t>(precission) * 63);
 		return is;
