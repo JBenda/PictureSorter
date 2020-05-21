@@ -503,7 +503,7 @@ void	md5_buffer(const char *buffer, const unsigned int buf_len,
  *
  * str_len - the length of the string.
  */
-void	md5_sig_to_string(void *signature, char *str, const int str_len)
+void	md5_sig_to_string(const void *signature, char *str, const int str_len)
 {
   unsigned char	*sig_p;
   char		*str_p, *max_p;
