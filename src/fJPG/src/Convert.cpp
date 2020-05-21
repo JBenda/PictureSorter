@@ -20,7 +20,8 @@ namespace fJPG {
 	enum struct Flags : uint8_t {
 		DATA = 0xDA,
 		APP0 = 0xE0,
-		APP1 = 0xE1,
+		APP1 = 0xE1, // TODO: implement
+        APP2 = 0xE2, // TODO: implement
 		DQT = 0xDB,
 		SOF0 = 0xC0,
 		SOF2 = 0xC2,
@@ -29,6 +30,12 @@ namespace fJPG {
 		SOI = 0xD8,
 		COM = 0xFE
 	};
+#ifdef DEBUG
+    std::ostream& operator<<(std::ostream& os, const Flags& f) {
+      os << "0x" << std::hex << static_cast<int>(f) << std::dec;
+      return os;
+    }
+#endif
 
 	JPGDecomposition Decompose( std::istream& );
 	void Decode( EditablePicture<ColorEncoding::YCrCb8>&, const JPGDecomposition& );
@@ -91,6 +98,12 @@ namespace fJPG {
 		uint16_t len = ReadLen( data.input );
 		Skip( data.input, len - 2 );
 	}
+
+    template<>
+    void Parse<Flags::APP2>(JPGDecomposition& data) {
+      uint16_t len = ReadLen(data.input);
+      Skip(data.input, len -2);
+    }
 
 	template<>
 	void Parse<Flags::DQT>( JPGDecomposition& data ) {
@@ -248,6 +261,9 @@ namespace fJPG {
 		case Flags::APP1:
 			Parse<Flags::APP1>( data );
 			break;
+        case Flags::APP2:
+            Parse<Flags::APP2>( data );
+            break;
 		case Flags::DQT:
 			Parse<Flags::DQT>( data );
 			break;
